@@ -17,11 +17,13 @@ enum ToolbarSheetMode: Equatable {
 
 final class ToolbarFlowState: ObservableObject {
     @Published var sheetMode: ToolbarSheetMode = .collapsed
+    @Published var isPanelVisible: Bool = false
 
     var isGlassActive: Bool { sheetMode != .collapsed }
 
     func reset() {
         sheetMode = .collapsed
+        // isPanelVisible is managed by ToolbarCoordinator.
     }
 
     func toggleStandardFolders() {

@@ -121,7 +121,7 @@ struct ToolbarContentView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             iconOrbit
-            if flow.isGlassActive {
+            if flow.isGlassActive && flow.isPanelVisible {
                 glassPanel
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
@@ -129,6 +129,7 @@ struct ToolbarContentView: View {
         .padding(rootPadding)
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: flow.sheetMode)
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: linearRail)
+        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: flow.isPanelVisible)
         .background(Color.clear)
         .onChange(of: flow.sheetMode) { _, _ in
             onLayoutChange()
@@ -141,15 +142,23 @@ struct ToolbarContentView: View {
             if linearRail {
                 VStack(spacing: iconStackSpacing) {
                     ForEach(0..<Self.slotCount, id: \.self) { index in
+                        let delay = flow.isPanelVisible ? Double(index) * 0.05 : Double(Self.slotCount - 1 - index) * 0.05
                         iconSlot(index: index)
+                            .scaleEffect(flow.isPanelVisible ? 1 : 0.4)
+                            .opacity(flow.isPanelVisible ? 1 : 0)
+                            .animation(.spring(response: 0.38, dampingFraction: 0.72).delay(delay), value: flow.isPanelVisible)
                     }
                 }
                 .frame(width: iconColumnWidth)
             } else {
                 ZStack {
                     ForEach(0..<Self.slotCount, id: \.self) { index in
+                        let delay = flow.isPanelVisible ? Double(index) * 0.05 : Double(Self.slotCount - 1 - index) * 0.05
                         iconSlot(index: index)
                             .offset(offsetForOrbit(index))
+                            .scaleEffect(flow.isPanelVisible ? 1 : 0.4)
+                            .opacity(flow.isPanelVisible ? 1 : 0)
+                            .animation(.spring(response: 0.38, dampingFraction: 0.72).delay(delay), value: flow.isPanelVisible)
                     }
                 }
                 .frame(width: iconColumnWidth, height: iconOrbitFrameHeight)
@@ -618,7 +627,7 @@ class ToolbarCoordinator: NSObject {
                 aiPrompt: aiPrompt,
                 flow: flow,
                 onDismiss: { [weak self] in
-                    self?.panel.orderOut(nil)
+                    self?.hideMenu()
                 },
                 onLayoutChange: { [weak self] in
                     self?.panel.resizeToFitContent(anchor: .frameCenter)
@@ -633,7 +642,7 @@ class ToolbarCoordinator: NSObject {
             guard self.panel.isVisible else { return }
             let screenLocation = NSEvent.mouseLocation
             if !self.panel.frame.contains(screenLocation) {
-                self.panel.orderOut(nil)
+                self.hideMenu()
             }
         }
     }
@@ -654,6 +663,7 @@ class ToolbarCoordinator: NSObject {
 
     func showMenu() {
         flow.reset()
+        flow.isPanelVisible = true
         previousApp.refreshForCurrentSpace()
 
         let mouseLoc = NSEvent.mouseLocation
@@ -671,6 +681,18 @@ class ToolbarCoordinator: NSObject {
             self.previousApp.refreshForCurrentSpace()
             self.panel.resizeToFitContent(anchor: .screenPoint(NSEvent.mouseLocation))
             self.panel.orderFrontRegardless()
+        }
+    }
+
+    func hideMenu() {
+        flow.isPanelVisible = false
+        // Delay dismissing the window so the stagger animation has time to finish
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
+            guard let self else { return }
+            if !self.flow.isPanelVisible {
+                self.panel.orderOut(nil)
+                self.flow.reset()
+            }
         }
     }
 
