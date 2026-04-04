@@ -1,14 +1,26 @@
 import AppKit
 import Carbon
 import Combine
+import CoreGraphics
 import SwiftUI
 
 // MARK: - ToolbarPanel
+
+/// How to position the panel after its content size changes.
+fileprivate enum ResizeFitAnchor {
+    /// Keep the same midpoint on screen (e.g. glass toggles wider/narrower).
+    case frameCenter
+    /// Put this screen-space point at the panel’s center (e.g. cursor when opening).
+    case screenPoint(NSPoint)
+}
 
 class ToolbarPanel: NSPanel {
     /// Allows `TextEditor` / text fields to receive keyboard input while using a non-activating panel style.
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// Lower bound for collapsed orbit + padding (`ToolbarContentView`); avoids bogus `fittingSize` after blend/layout quirks.
+    private static let minOrbitContent = NSSize(width: 224, height: 224)
 
     override init(
         contentRect: NSRect,
@@ -23,7 +35,8 @@ class ToolbarPanel: NSPanel {
             defer: false
         )
         self.isFloatingPanel = true
-        self.level = .floating
+        // Stay above normal windows, fullscreen content, and most app UI (same idea as max z-index).
+        self.level = NSWindow.Level(Int(CGWindowLevelForKey(.maximumWindow)))
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.backgroundColor = .clear
         self.isOpaque = false
@@ -36,17 +49,40 @@ class ToolbarPanel: NSPanel {
         hosting.layer?.masksToBounds = false
         contentView = hosting
         DispatchQueue.main.async { [weak self] in
-            self?.resizeToFitContent()
+            self?.resizeToFitContent(anchor: .frameCenter)
         }
     }
 
-    func resizeToFitContent() {
+    fileprivate func resizeToFitContent(anchor: ResizeFitAnchor = .frameCenter) {
         guard let cv = contentView else { return }
         cv.layoutSubtreeIfNeeded()
         let s = cv.fittingSize
-        guard s.width > 10, s.height > 10 else { return }
-        var f = frame
-        f.size = NSSize(width: max(52, ceil(s.width)), height: max(120, ceil(s.height)))
+        let old = frame
+        // `fittingSize` can briefly report ~0 over some compositing paths (often on light UIs), which
+        // would collapse the panel; fall back to last frame or orbit minimum.
+        let fitW: CGFloat
+        let fitH: CGFloat
+        if s.width > 10, s.height > 10 {
+            fitW = s.width
+            fitH = s.height
+        } else {
+            fitW = max(Self.minOrbitContent.width, old.width)
+            fitH = max(Self.minOrbitContent.height, old.height)
+        }
+        let w = max(Self.minOrbitContent.width, max(52, ceil(fitW)))
+        let h = max(Self.minOrbitContent.height, max(120, ceil(fitH)))
+        let anchorPoint: NSPoint
+        switch anchor {
+        case .frameCenter:
+            anchorPoint = NSPoint(x: old.midX, y: old.midY)
+        case .screenPoint(let p):
+            anchorPoint = p
+        }
+
+        var f = old
+        f.size = NSSize(width: w, height: h)
+        f.origin.x = anchorPoint.x - f.width / 2
+        f.origin.y = anchorPoint.y - f.height / 2
         setFrame(f, display: true)
     }
 }
@@ -184,15 +220,17 @@ struct ToolbarContentView: View {
             label()
                 .foregroundStyle(Color.white)
                 .frame(width: iconDiameter, height: iconDiameter)
-                .background(
-                    Circle()
-                        .fill(Color.white.opacity(isActive ? 0.24 : 0.16))
-                )
+                .background {
+                    ZStack {
+                        Circle().fill(.ultraThinMaterial)
+                        Circle().fill(Color.white.opacity(isActive ? 0.22 : 0.14))
+                    }
+                }
                 .overlay(
                     Circle()
-                        .strokeBorder(Color.white.opacity(isActive ? 0.38 : 0.22), lineWidth: 1)
+                        .strokeBorder(Color.white.opacity(isActive ? 0.4 : 0.26), lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                .shadow(color: .black.opacity(0.38), radius: 4, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -280,6 +318,8 @@ class ToolbarCoordinator: NSObject {
     let flow = ToolbarFlowState()
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
+    /// Ignores stray global mouse-downs right after opening (resize/cursor timing).
+    private var suppressDismissUntil: Date?
 
     override init() {
         super.init()
@@ -292,7 +332,7 @@ class ToolbarCoordinator: NSObject {
                     self?.panel.orderOut(nil)
                 },
                 onLayoutChange: { [weak self] in
-                    self?.panel.resizeToFitContent()
+                    self?.panel.resizeToFitContent(anchor: .frameCenter)
                 }
             )
         )
@@ -300,6 +340,8 @@ class ToolbarCoordinator: NSObject {
 
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self else { return }
+            if let until = self.suppressDismissUntil, Date() < until { return }
+            guard self.panel.isVisible else { return }
             let screenLocation = NSEvent.mouseLocation
             if !self.panel.frame.contains(screenLocation) {
                 self.panel.orderOut(nil)
@@ -324,16 +366,19 @@ class ToolbarCoordinator: NSObject {
     func showMenu() {
         flow.reset()
 
-        panel.resizeToFitContent()
-
         let mouseLoc = NSEvent.mouseLocation
-        let x = mouseLoc.x - (panel.frame.width / 2)
-        let y = mouseLoc.y - (panel.frame.height / 2)
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        suppressDismissUntil = Date().addingTimeInterval(0.22)
+
+        // First fit + center on cursor. A later async resize must re-anchor the same way;
+        // otherwise only the size changes and the origin stays fixed, shifting the panel off the pointer.
+        panel.resizeToFitContent(anchor: .screenPoint(mouseLoc))
         panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
 
         DispatchQueue.main.async { [weak self] in
-            self?.panel.resizeToFitContent()
+            guard let self else { return }
+            self.panel.resizeToFitContent(anchor: .screenPoint(NSEvent.mouseLocation))
+            self.panel.orderFrontRegardless()
         }
     }
 
