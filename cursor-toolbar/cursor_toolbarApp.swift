@@ -123,7 +123,12 @@ struct ToolbarContentView: View {
             iconOrbit
             if flow.isGlassActive && flow.isPanelVisible {
                 glassPanel
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.9, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -16)),
+                            removal: .scale(scale: 0.9, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -16))
+                        )
+                    )
             }
         }
         .padding(rootPadding)
@@ -138,32 +143,30 @@ struct ToolbarContentView: View {
     }
 
     private var iconOrbit: some View {
-        Group {
-            if linearRail {
-                VStack(spacing: iconStackSpacing) {
-                    ForEach(0..<Self.slotCount, id: \.self) { index in
-                        let delay = flow.isPanelVisible ? Double(index) * 0.05 : Double(Self.slotCount - 1 - index) * 0.05
-                        iconSlot(index: index)
-                            .scaleEffect(flow.isPanelVisible ? 1 : 0.4)
-                            .opacity(flow.isPanelVisible ? 1 : 0)
-                            .animation(.spring(response: 0.38, dampingFraction: 0.72).delay(delay), value: flow.isPanelVisible)
-                    }
-                }
-                .frame(width: iconColumnWidth)
-            } else {
-                ZStack {
-                    ForEach(0..<Self.slotCount, id: \.self) { index in
-                        let delay = flow.isPanelVisible ? Double(index) * 0.05 : Double(Self.slotCount - 1 - index) * 0.05
-                        iconSlot(index: index)
-                            .offset(offsetForOrbit(index))
-                            .scaleEffect(flow.isPanelVisible ? 1 : 0.4)
-                            .opacity(flow.isPanelVisible ? 1 : 0)
-                            .animation(.spring(response: 0.38, dampingFraction: 0.72).delay(delay), value: flow.isPanelVisible)
-                    }
-                }
-                .frame(width: iconColumnWidth, height: iconOrbitFrameHeight)
+        let railDelayFactor = 0.04
+        return ZStack {
+            ForEach(0..<Self.slotCount, id: \.self) { index in
+                let popDelay = flow.isPanelVisible ? Double(index) * 0.05 : Double(Self.slotCount - 1 - index) * 0.05
+                let railDelay = linearRail ? Double(index) * railDelayFactor : Double(Self.slotCount - 1 - index) * railDelayFactor
+                iconSlot(index: index)
+                    .offset(linearRail ? linearRailOffset(index) : offsetForOrbit(index))
+                    .scaleEffect(flow.isPanelVisible ? 1 : 0.4)
+                    .opacity(flow.isPanelVisible ? 1 : 0)
+                    .animation(.spring(response: 0.38, dampingFraction: 0.72).delay(popDelay), value: flow.isPanelVisible)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.75).delay(railDelay), value: linearRail)
             }
         }
+        .frame(
+            width: iconColumnWidth,
+            height: linearRail ? (CGFloat(Self.slotCount) * iconDiameter + CGFloat(Self.slotCount - 1) * iconStackSpacing) : iconOrbitFrameHeight
+        )
+    }
+
+    private func linearRailOffset(_ index: Int) -> CGSize {
+        let totalHeight = CGFloat(Self.slotCount) * iconDiameter + CGFloat(Self.slotCount - 1) * iconStackSpacing
+        let startY = -totalHeight / 2 + (iconDiameter / 2)
+        let y = startY + CGFloat(index) * (iconDiameter + iconStackSpacing)
+        return CGSize(width: 0, height: y)
     }
 
     @ViewBuilder
