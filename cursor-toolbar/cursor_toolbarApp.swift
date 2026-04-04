@@ -27,11 +27,14 @@ class ToolbarPanel: NSPanel {
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.backgroundColor = .clear
         self.isOpaque = false
-        self.hasShadow = true
+        self.hasShadow = false
     }
 
     func setContent(_ view: some View) {
-        contentView = NSHostingView(rootView: view)
+        let hosting = NSHostingView(rootView: view)
+        hosting.wantsLayer = true
+        hosting.layer?.masksToBounds = false
+        contentView = hosting
         DispatchQueue.main.async { [weak self] in
             self?.resizeToFitContent()
         }
@@ -43,7 +46,7 @@ class ToolbarPanel: NSPanel {
         let s = cv.fittingSize
         guard s.width > 10, s.height > 10 else { return }
         var f = frame
-        f.size = NSSize(width: max(260, ceil(s.width)), height: max(200, ceil(s.height)))
+        f.size = NSSize(width: max(52, ceil(s.width)), height: max(120, ceil(s.height)))
         setFrame(f, display: true)
     }
 }
@@ -53,26 +56,175 @@ class ToolbarPanel: NSPanel {
 struct ToolbarContentView: View {
     @ObservedObject var clipboard: ClipboardManager
     @ObservedObject var notes: NotesManager
+    @ObservedObject var flow: ToolbarFlowState
     var onDismiss: () -> Void
+    var onLayoutChange: () -> Void
+
+    private let iconDiameter: CGFloat = 44
+    private let iconOrbitRadius: CGFloat = 78
+    private let iconStackSpacing: CGFloat = 8
+    private static let slotCount = 6
+
+    private var linearRail: Bool { flow.sheetMode == .full }
+
+    private var iconColumnWidth: CGFloat { linearRail ? 52 : 2 * iconOrbitRadius + iconDiameter }
+    private var iconOrbitFrameHeight: CGFloat { 2 * iconOrbitRadius + iconDiameter }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: ToolbarGlass.outerRadius, style: .continuous)
-
-        VStack(alignment: .leading, spacing: ToolbarGlass.sectionSpacing) {
-            sectionBlock(title: "Clipboard") {
-                ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
-            }
-
-            sectionBlock(title: "Notes") {
-                NotesSectionView(notes: notes)
-            }
-
-            sectionBlock(title: "Folders") {
-                FinderFoldersColumn()
+        HStack(alignment: .top, spacing: 14) {
+            iconOrbit
+            if flow.isGlassActive {
+                glassPanel
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
         }
+        .padding(flow.isGlassActive ? EdgeInsets(top: 18, leading: 14, bottom: 22, trailing: 22) : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: flow.sheetMode)
+        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: linearRail)
+        .background(Color.clear)
+        .onChange(of: flow.sheetMode) { _, _ in
+            onLayoutChange()
+        }
+        .onAppear { onLayoutChange() }
+    }
+
+    private var iconOrbit: some View {
+        Group {
+            if linearRail {
+                VStack(spacing: iconStackSpacing) {
+                    ForEach(0..<Self.slotCount, id: \.self) { index in
+                        iconSlot(index: index)
+                    }
+                }
+                .frame(width: iconColumnWidth)
+            } else {
+                ZStack {
+                    ForEach(0..<Self.slotCount, id: \.self) { index in
+                        iconSlot(index: index)
+                            .offset(offsetForOrbit(index))
+                    }
+                }
+                .frame(width: iconColumnWidth, height: iconOrbitFrameHeight)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func iconSlot(index: Int) -> some View {
+        let folders = Array(FolderShortcut.allCases)
+        switch index {
+        case let i where (0..<3).contains(i):
+            let folder = folders[i]
+            circularIconButton(
+                isActive: false,
+                accessibilityLabel: folder.title,
+                action: { folder.openInFinder() }
+            ) {
+                Image(systemName: folder.systemImage)
+                    .font(.system(size: 17, weight: .medium))
+            }
+        case 3:
+            let notesOpen = flow.sheetMode == .notes || flow.sheetMode == .full
+            circularIconButton(
+                isActive: notesOpen,
+                accessibilityLabel: "Notes",
+                action: { flow.toggleNotes() }
+            ) {
+                HStack(spacing: 2) {
+                    Image(systemName: "note.text")
+                        .font(.system(size: 16, weight: .medium))
+                    Image(systemName: notesOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+        case 4:
+            let clipOpen = flow.sheetMode == .clipboard || flow.sheetMode == .full
+            circularIconButton(
+                isActive: clipOpen,
+                accessibilityLabel: "Clipboard",
+                action: { flow.toggleClipboard() }
+            ) {
+                HStack(spacing: 2) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 15, weight: .medium))
+                    Image(systemName: clipOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+        case 5:
+            let full = flow.sheetMode == .full
+            circularIconButton(
+                isActive: full,
+                accessibilityLabel: full ? "Collapse all" : "Expand all",
+                action: { flow.toggleFullExpand() }
+            ) {
+                Image(systemName: full ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func offsetForOrbit(_ index: Int) -> CGSize {
+        let n = Double(Self.slotCount)
+        let angle = -Double.pi / 2 + 2 * Double.pi * Double(index) / n
+        let x = iconOrbitRadius * cos(angle)
+        let y = iconOrbitRadius * sin(angle)
+        return CGSize(width: x, height: y)
+    }
+
+    private func circularIconButton(
+        isActive: Bool,
+        accessibilityLabel: String,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> some View
+    ) -> some View {
+        Button(action: action) {
+            label()
+                .foregroundStyle(Color.white)
+                .frame(width: iconDiameter, height: iconDiameter)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(isActive ? 0.24 : 0.16))
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(isActive ? 0.38 : 0.22), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var glassPanel: some View {
+        let shape = RoundedRectangle(cornerRadius: ToolbarGlass.outerRadius, style: .continuous)
+
+        let card = VStack(alignment: .leading, spacing: 0) {
+            switch flow.sheetMode {
+            case .collapsed:
+                EmptyView()
+            case .notes:
+                NotesSectionView(notes: notes)
+            case .clipboard:
+                ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
+            case .full:
+                VStack(alignment: .leading, spacing: ToolbarGlass.sectionSpacing) {
+                    sectionBlock(title: "Folders") {
+                        FinderFoldersColumn()
+                    }
+                    sectionBlock(title: "Notes") {
+                        NotesSectionView(notes: notes)
+                    }
+                    sectionBlock(title: "Clipboard") {
+                        ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
+                    }
+                }
+            }
+        }
+        .frame(width: 272, alignment: .leading)
         .padding(ToolbarGlass.innerPadding)
-        .frame(width: 272)
         .background {
             ZStack {
                 GlassPanelBackground(cornerRadius: ToolbarGlass.outerRadius)
@@ -83,7 +235,15 @@ struct ToolbarContentView: View {
         .overlay(
             shape.strokeBorder(Color.white.opacity(ToolbarGlass.borderOpacity), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.28), radius: 22, y: 10)
+
+        return ZStack {
+            shape
+                .fill(Color.black.opacity(0.32))
+                .blur(radius: 22)
+                .offset(y: 12)
+                .allowsHitTesting(false)
+            card
+        }
     }
 
     @ViewBuilder
@@ -117,6 +277,7 @@ class ToolbarCoordinator: NSObject {
     let panel = ToolbarPanel()
     let clipboard = ClipboardManager()
     let notes = NotesManager()
+    let flow = ToolbarFlowState()
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
@@ -126,8 +287,12 @@ class ToolbarCoordinator: NSObject {
             ToolbarContentView(
                 clipboard: clipboard,
                 notes: notes,
+                flow: flow,
                 onDismiss: { [weak self] in
                     self?.panel.orderOut(nil)
+                },
+                onLayoutChange: { [weak self] in
+                    self?.panel.resizeToFitContent()
                 }
             )
         )
@@ -157,6 +322,8 @@ class ToolbarCoordinator: NSObject {
     }
 
     func showMenu() {
+        flow.reset()
+
         panel.resizeToFitContent()
 
         let mouseLoc = NSEvent.mouseLocation
@@ -164,6 +331,10 @@ class ToolbarCoordinator: NSObject {
         let y = mouseLoc.y - (panel.frame.height / 2)
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.makeKeyAndOrderFront(nil)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.panel.resizeToFitContent()
+        }
     }
 
     deinit {

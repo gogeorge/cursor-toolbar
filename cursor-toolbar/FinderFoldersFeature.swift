@@ -6,45 +6,69 @@
 import AppKit
 import SwiftUI
 
-struct FinderFoldersColumn: View {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+enum FolderShortcut: String, CaseIterable, Identifiable {
+    case documents
+    case downloads
+    case library
 
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .documents: "doc.text"
+        case .downloads: "arrow.down.circle"
+        case .library: "books.vertical"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .documents: "Documents"
+        case .downloads: "Downloads"
+        case .library: "Library"
+        }
+    }
+
+    var url: URL {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        switch self {
+        case .documents:
+            return home.appendingPathComponent("Documents", isDirectory: true)
+        case .downloads:
+            return home.appendingPathComponent("Downloads", isDirectory: true)
+        case .library:
+            return home.appendingPathComponent("Library", isDirectory: true)
+        }
+    }
+
+    func openInFinder() {
+        NSWorkspace.shared.open(url)
+    }
+}
+
+struct FinderFoldersColumn: View {
     var body: some View {
         VStack(spacing: 10) {
-            FolderAccessRow(
-                title: "Documents",
-                systemImage: "doc.text",
-                url: Self.home.appendingPathComponent("Documents", isDirectory: true)
-            )
-            FolderAccessRow(
-                title: "Downloads",
-                systemImage: "arrow.down.circle",
-                url: Self.home.appendingPathComponent("Downloads", isDirectory: true)
-            )
-            FolderAccessRow(
-                title: "Library",
-                systemImage: "books.vertical",
-                url: Self.home.appendingPathComponent("Library", isDirectory: true)
-            )
+            ForEach(FolderShortcut.allCases) { folder in
+                FolderAccessRow(folder: folder)
+            }
         }
     }
 }
 
 private struct FolderAccessRow: View {
-    let title: String
-    let systemImage: String
-    let url: URL
+    let folder: FolderShortcut
 
     var body: some View {
         Button {
-            NSWorkspace.shared.open(url)
+            folder.openInFinder()
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: systemImage)
+                Image(systemName: folder.systemImage)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.88))
                     .frame(width: 22, alignment: .center)
-                Text(title)
+                Text(folder.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.white)
                 Spacer(minLength: 0)
