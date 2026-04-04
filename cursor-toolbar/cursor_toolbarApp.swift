@@ -1,10 +1,15 @@
-import SwiftUI
 import AppKit
 import Carbon
 import Combine
+import SwiftUI
 
 // MARK: - ToolbarPanel
+
 class ToolbarPanel: NSPanel {
+    /// Allows `TextEditor` / text fields to receive keyboard input while using a non-activating panel style.
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+
     override init(
         contentRect: NSRect,
         styleMask style: NSWindow.StyleMask,
@@ -12,7 +17,7 @@ class ToolbarPanel: NSPanel {
         defer flag: Bool
     ) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 220, height: 50),
+            contentRect: NSRect(x: 0, y: 0, width: 280, height: 420),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
             backing: .buffered,
             defer: false
@@ -26,68 +31,88 @@ class ToolbarPanel: NSPanel {
     }
 
     func setContent(_ view: some View) {
-        self.contentView = NSHostingView(rootView: view)
+        contentView = NSHostingView(rootView: view)
+        DispatchQueue.main.async { [weak self] in
+            self?.resizeToFitContent()
+        }
+    }
+
+    func resizeToFitContent() {
+        guard let cv = contentView else { return }
+        cv.layoutSubtreeIfNeeded()
+        let s = cv.fittingSize
+        guard s.width > 10, s.height > 10 else { return }
+        var f = frame
+        f.size = NSSize(width: max(260, ceil(s.width)), height: max(200, ceil(s.height)))
+        setFrame(f, display: true)
     }
 }
 
-// MARK: - Toolbar SwiftUI Content
+// MARK: - Toolbar SwiftUI content
+
 struct ToolbarContentView: View {
     @ObservedObject var clipboard: ClipboardManager
     @ObservedObject var notes: NotesManager
-    @State private var showClipboard = false
-    @State private var showNotes = false
+    var onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Main toolbar row
-            HStack(spacing: 12) {
-                Button("✂️") {}
+        let shape = RoundedRectangle(cornerRadius: ToolbarGlass.outerRadius, style: .continuous)
 
-                Button("📋") {
-                    withAnimation(.spring(response: 0.3)) {
-                        showClipboard.toggle()
-                        if showClipboard { showNotes = false }
-                    }
-                }
-
-                Button("🗒️") {
-                    withAnimation(.spring(response: 0.3)) {
-                        showNotes.toggle()
-                        if showNotes { showClipboard = false }
-                    }
-                }
-
-                Button("🔍") {}
-            }
-            .padding(8)
-
-            if showClipboard {
-                ClipboardDropdownView(clipboard: clipboard, isShowing: $showClipboard)
+        VStack(alignment: .leading, spacing: ToolbarGlass.sectionSpacing) {
+            sectionBlock(title: "Clipboard") {
+                ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
             }
 
-            if showNotes {
-                NotesDropdownView(notes: notes)
+            sectionBlock(title: "Notes") {
+                NotesSectionView(notes: notes)
+            }
+
+            sectionBlock(title: "Folders") {
+                FinderFoldersColumn()
             }
         }
-        .background(.ultraThinMaterial)
-        .cornerRadius(10)
-        .fixedSize()
+        .padding(ToolbarGlass.innerPadding)
+        .frame(width: 272)
+        .background {
+            ZStack {
+                GlassPanelBackground(cornerRadius: ToolbarGlass.outerRadius)
+                shape.fill(ToolbarGlass.tint)
+            }
+        }
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(Color.white.opacity(ToolbarGlass.borderOpacity), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 22, y: 10)
+    }
+
+    @ViewBuilder
+    private func sectionBlock(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.white)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-// MARK: - Hotkey Handler
+// MARK: - Hotkey handler
+
 private func hotkeyHandler(
     nextHandler: EventHandlerCallRef?,
     event: EventRef?,
     userData: UnsafeMutableRawPointer?
 ) -> OSStatus {
-    guard let userData = userData else { return OSStatus(eventNotHandledErr) }
+    guard let userData else { return OSStatus(eventNotHandledErr) }
     let coordinator = Unmanaged<ToolbarCoordinator>.fromOpaque(userData).takeUnretainedValue()
     coordinator.showMenu()
     return noErr
 }
 
 // MARK: - Coordinator
+
 class ToolbarCoordinator: NSObject {
     let panel = ToolbarPanel()
     let clipboard = ClipboardManager()
@@ -97,19 +122,20 @@ class ToolbarCoordinator: NSObject {
 
     override init() {
         super.init()
-        panel.setContent(ToolbarContentView(clipboard: clipboard, notes: notes))
+        panel.setContent(
+            ToolbarContentView(
+                clipboard: clipboard,
+                notes: notes,
+                onDismiss: { [weak self] in
+                    self?.panel.orderOut(nil)
+                }
+            )
+        )
         registerHotKey()
 
-        NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            return event
-        }
-
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self = self else { return }
-            let clickLocation = event.locationInWindow
+            guard let self else { return }
             let screenLocation = NSEvent.mouseLocation
-            
-            // Only dismiss if the click is outside the panel's frame
             if !self.panel.frame.contains(screenLocation) {
                 self.panel.orderOut(nil)
             }
@@ -131,6 +157,8 @@ class ToolbarCoordinator: NSObject {
     }
 
     func showMenu() {
+        panel.resizeToFitContent()
+
         let mouseLoc = NSEvent.mouseLocation
         let x = mouseLoc.x - (panel.frame.width / 2)
         let y = mouseLoc.y - (panel.frame.height / 2)
@@ -139,12 +167,13 @@ class ToolbarCoordinator: NSObject {
     }
 
     deinit {
-        if let hotKeyRef = hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
-        if let eventHandlerRef = eventHandlerRef { RemoveEventHandler(eventHandlerRef) }
+        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let eventHandlerRef { RemoveEventHandler(eventHandlerRef) }
     }
 }
 
-// MARK: - App Entry Point
+// MARK: - App entry
+
 @main
 struct cursor_toolbarApp: App {
     private let coordinator = ToolbarCoordinator()

@@ -2,14 +2,13 @@
 //  ClipboardFeature.swift
 //  cursor-toolbar
 //
-//  Created by George Valtas on 04/04/2026.
-//
 
-import SwiftUI
 import AppKit
 import Combine
+import SwiftUI
 
 // MARK: - Clipboard Manager
+
 class ClipboardManager: ObservableObject {
     @Published var recentTexts: [String] = []
     private var lastChangeCount: Int = NSPasteboard.general.changeCount
@@ -54,51 +53,63 @@ class ClipboardManager: ObservableObject {
     deinit { timer?.invalidate() }
 }
 
-// MARK: - Clipboard Dropdown View
-struct ClipboardDropdownView: View {
+// MARK: - Clipboard section
+
+struct ClipboardSectionView: View {
     @ObservedObject var clipboard: ClipboardManager
-    @Binding var isShowing: Bool
+    var onCopyItem: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
+        Group {
             if clipboard.recentTexts.isEmpty {
                 Text("No clipboard history yet")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
             } else {
-                ForEach(Array(clipboard.recentTexts.enumerated()), id: \.offset) { _, text in
-                    Button {
-                        clipboard.copy(text)
-                        isShowing = false
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "doc.on.clipboard")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            Text(text)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                            Spacer()
+                VStack(spacing: 0) {
+                    ForEach(Array(clipboard.recentTexts.enumerated()), id: \.offset) { _, text in
+                        Button {
+                            clipboard.copy(text)
+                            onCopyItem()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Color.white.opacity(0.55))
+                                Text(text)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .font(.system(size: 13, weight: .regular))
+                                    .foregroundStyle(Color.white.opacity(0.95))
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .background(Color.primary.opacity(0.001)) // ensures hit area
-                    
-                    if text != clipboard.recentTexts.last {
-                        Divider().padding(.leading, 10)
+                        .buttonStyle(.plain)
+
+                        if text != clipboard.recentTexts.last {
+                            Divider()
+                                .overlay(Color.white.opacity(0.12))
+                                .padding(.leading, 14)
+                        }
                     }
                 }
             }
         }
-        .frame(width: 220)
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        .padding(.vertical, 4)
+        .padding(.horizontal, 2)
+        .background(
+            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                .fill(Color.black.opacity(0.2))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+        )
     }
 }
