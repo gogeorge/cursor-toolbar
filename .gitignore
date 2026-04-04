@@ -1,1 +1,27 @@
+# Xcode / macOS
 DerivedData/
+.derivedData/
+build/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/package.xcworkspace/
+.swiftpm/configuration/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Archives & symbols (if you ever add them locally)
+*.ipa
+*.dSYM.zip
+
+# Env / secrets (if you add later)
+.env
+.env.*
+*.pem
