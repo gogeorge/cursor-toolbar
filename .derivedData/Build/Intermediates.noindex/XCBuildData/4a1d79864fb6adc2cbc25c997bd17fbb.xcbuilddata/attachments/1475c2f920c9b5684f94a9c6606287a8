@@ -1,0 +1,109 @@
+{
+  "" : {
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor-toolbar-primary.dia",
+    "emit-module-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor-toolbar-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor-toolbar-primary-emit-module.dia",
+    "pch" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor-toolbar-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor-toolbar-primary.swiftdeps"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/AIPromptFeature.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/AIPromptFeature~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/ClipboardFeature.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ClipboardFeature~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/ContentView.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/FinderFoldersFeature.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/FinderFoldersFeature~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/GlassChrome.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/GlassChrome~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/NotesFeature.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/NotesFeature~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/PreviousAppTracker.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/PreviousAppTracker~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/ToolbarFlowState.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/ToolbarFlowState~partial.swiftmodule"
+  },
+  "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/cursor-toolbar/cursor_toolbarApp.swift" : {
+    "const-values" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.swiftconstvalues",
+    "dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.d",
+    "diagnostics" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.dia",
+    "index-unit-output-path" : "/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.o",
+    "llvm-bc" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.bc",
+    "object" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.o",
+    "swift-dependencies" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp.swiftdeps",
+    "swiftmodule" : "/Users/georgevaltas/Desktop/everything/hobbies/Coding projects/cursor-toolbar/.derivedData/Build/Intermediates.noindex/cursor-toolbar.build/Debug/cursor-toolbar.build/Objects-normal/arm64/cursor_toolbarApp~partial.swiftmodule"
+  }
+}

@@ -8,6 +8,8 @@ import Foundation
 
 enum ToolbarSheetMode: Equatable {
     case collapsed
+    case standardFolders
+    case aiPrompt
     case notes
     case clipboard
     case full
@@ -20,6 +22,22 @@ final class ToolbarFlowState: ObservableObject {
 
     func reset() {
         sheetMode = .collapsed
+    }
+
+    func toggleStandardFolders() {
+        switch sheetMode {
+        case .standardFolders: sheetMode = .collapsed
+        case .full: sheetMode = .standardFolders
+        default: sheetMode = .standardFolders
+        }
+    }
+
+    func toggleAIPrompt() {
+        switch sheetMode {
+        case .aiPrompt: sheetMode = .collapsed
+        case .full: sheetMode = .aiPrompt
+        default: sheetMode = .aiPrompt
+        }
     }
 
     func toggleNotes() {

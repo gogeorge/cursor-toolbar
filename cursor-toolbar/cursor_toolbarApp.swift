@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Carbon
 import Combine
 import CoreGraphics
@@ -47,6 +48,7 @@ class ToolbarPanel: NSPanel {
         let hosting = NSHostingView(rootView: view)
         hosting.wantsLayer = true
         hosting.layer?.masksToBounds = false
+        hosting.clipsToBounds = false
         contentView = hosting
         DispatchQueue.main.async { [weak self] in
             self?.resizeToFitContent(anchor: .frameCenter)
@@ -92,6 +94,8 @@ class ToolbarPanel: NSPanel {
 struct ToolbarContentView: View {
     @ObservedObject var clipboard: ClipboardManager
     @ObservedObject var notes: NotesManager
+    @ObservedObject var previousApp: PreviousAppTracker
+    @ObservedObject var aiPrompt: AIPromptState
     @ObservedObject var flow: ToolbarFlowState
     var onDismiss: () -> Void
     var onLayoutChange: () -> Void
@@ -106,6 +110,14 @@ struct ToolbarContentView: View {
     private var iconColumnWidth: CGFloat { linearRail ? 52 : 2 * iconOrbitRadius + iconDiameter }
     private var iconOrbitFrameHeight: CGFloat { 2 * iconOrbitRadius + iconDiameter }
 
+    private var rootPadding: EdgeInsets {
+        if flow.isGlassActive {
+            // Extra trailing/bottom room so the panel shadow is not clipped by the window (visible on light backgrounds).
+            return EdgeInsets(top: 20, leading: 14, bottom: 40, trailing: 48)
+        }
+        return EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             iconOrbit
@@ -114,7 +126,7 @@ struct ToolbarContentView: View {
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
         }
-        .padding(flow.isGlassActive ? EdgeInsets(top: 18, leading: 14, bottom: 22, trailing: 22) : EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+        .padding(rootPadding)
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: flow.sheetMode)
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: linearRail)
         .background(Color.clear)
@@ -147,17 +159,53 @@ struct ToolbarContentView: View {
 
     @ViewBuilder
     private func iconSlot(index: Int) -> some View {
-        let folders = Array(FolderShortcut.allCases)
         switch index {
-        case let i where (0..<3).contains(i):
-            let folder = folders[i]
+        case 0:
             circularIconButton(
                 isActive: false,
-                accessibilityLabel: folder.title,
-                action: { folder.openInFinder() }
+                accessibilityLabel: previousApp.accessibilityLabelForPreviousApp(),
+                action: { previousApp.activatePreviousApp() }
             ) {
-                Image(systemName: folder.systemImage)
-                    .font(.system(size: 17, weight: .medium))
+                Group {
+                    if let icon = previousApp.iconForPreviousApp() {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        Image(systemName: "app.dashed")
+                            .font(.system(size: 18, weight: .medium))
+                    }
+                }
+                .frame(width: 26, height: 26)
+            }
+        case 1:
+            let foldersOpen = flow.sheetMode == .standardFolders || flow.sheetMode == .full
+            circularIconButton(
+                isActive: flow.sheetMode == .standardFolders,
+                accessibilityLabel: "Downloads, Documents, and Library",
+                action: { flow.toggleStandardFolders() }
+            ) {
+                HStack(spacing: 2) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 16, weight: .medium))
+                    Image(systemName: foldersOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+        case 2:
+            let aiOpen = flow.sheetMode == .aiPrompt || flow.sheetMode == .full
+            circularIconButton(
+                isActive: flow.sheetMode == .aiPrompt,
+                accessibilityLabel: "AI prompt",
+                action: { flow.toggleAIPrompt() }
+            ) {
+                HStack(spacing: 2) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16, weight: .medium))
+                    Image(systemName: aiOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
             }
         case 3:
             let notesOpen = flow.sheetMode == .notes || flow.sheetMode == .full
@@ -243,6 +291,14 @@ struct ToolbarContentView: View {
             switch flow.sheetMode {
             case .collapsed:
                 EmptyView()
+            case .standardFolders:
+                sectionBlock(title: "Folders") {
+                    FinderFoldersColumn()
+                }
+            case .aiPrompt:
+                sectionBlock(title: "AI prompt") {
+                    AIPromptSectionView(state: aiPrompt)
+                }
             case .notes:
                 NotesSectionView(notes: notes)
             case .clipboard:
@@ -251,6 +307,9 @@ struct ToolbarContentView: View {
                 VStack(alignment: .leading, spacing: ToolbarGlass.sectionSpacing) {
                     sectionBlock(title: "Folders") {
                         FinderFoldersColumn()
+                    }
+                    sectionBlock(title: "AI prompt") {
+                        AIPromptSectionView(state: aiPrompt)
                     }
                     sectionBlock(title: "Notes") {
                         NotesSectionView(notes: notes)
@@ -274,14 +333,11 @@ struct ToolbarContentView: View {
             shape.strokeBorder(Color.white.opacity(ToolbarGlass.borderOpacity), lineWidth: 1)
         )
 
-        return ZStack {
-            shape
-                .fill(Color.black.opacity(0.32))
-                .blur(radius: 22)
-                .offset(y: 12)
-                .allowsHitTesting(false)
-            card
-        }
+        // CompositingGroup + SwiftUI shadow follows the rounded shape; avoid a blurred rect (clips to a box on white).
+        return card
+            .compositingGroup()
+            .shadow(color: Color.black.opacity(0.20), radius: 28, x: 0, y: 14)
+            .shadow(color: Color.black.opacity(0.07), radius: 6, x: 0, y: 3)
     }
 
     @ViewBuilder
@@ -293,6 +349,235 @@ struct ToolbarContentView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Previous app (active space)
+
+/// Tracks the app you used before the current one. Uses activation notifications (sandbox-safe). When
+/// `CGWindowListCopyWindowInfo` lists other apps’ windows, we also prefer candidates on the active space.
+@MainActor
+final class PreviousAppTracker: ObservableObject {
+    @Published private(set) var previousAppBundleIdentifier: String?
+
+    /// Recent activations, newest at end (this app is never stored).
+    private var recentBundleIDs: [String] = []
+    private let ownBundleID = Bundle.main.bundleIdentifier
+    private var activationObserver: NSObjectProtocol?
+
+    init() {
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            self.handleActivation(notification)
+        }
+        seedFromFrontmostIfEligible()
+    }
+
+    deinit {
+        if let activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
+    }
+
+    func refreshForCurrentSpace() {
+        recentBundleIDs = recentBundleIDs.filter { bid in
+            NSRunningApplication.runningApplications(withBundleIdentifier: bid).contains { !$0.isTerminated }
+        }
+        seedFromFrontmostIfEligible()
+        updatePublishedPrevious()
+    }
+
+    private func seedFromFrontmostIfEligible() {
+        guard let front = NSWorkspace.shared.frontmostApplication,
+              let bid = front.bundleIdentifier,
+              bid != ownBundleID
+        else { return }
+        if recentBundleIDs.last != bid {
+            recentBundleIDs.append(bid)
+            trimRecent()
+        }
+    }
+
+    private func handleActivation(_ notification: Notification) {
+        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+        guard let bid = app.bundleIdentifier, bid != ownBundleID else { return }
+        if recentBundleIDs.last == bid { return }
+        recentBundleIDs.append(bid)
+        trimRecent()
+        updatePublishedPrevious()
+    }
+
+    private func trimRecent() {
+        let max = 24
+        if recentBundleIDs.count > max {
+            recentBundleIDs.removeFirst(recentBundleIDs.count - max)
+        }
+    }
+
+    /// When our toolbar is key, treat the last non-self activation as the “current” app for picking “previous”.
+    private func effectiveFrontBundleID() -> String? {
+        let frontBid = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if frontBid == ownBundleID {
+            return recentBundleIDs.last
+        }
+        return frontBid
+    }
+
+    private func updatePublishedPrevious() {
+        guard let anchor = effectiveFrontBundleID(), anchor != ownBundleID else {
+            previousAppBundleIdentifier = nil
+            return
+        }
+        guard let anchorIdx = recentBundleIDs.lastIndex(of: anchor), anchorIdx > 0 else {
+            previousAppBundleIdentifier = nil
+            return
+        }
+        for i in (0..<anchorIdx).reversed() {
+            let bid = recentBundleIDs[i]
+            if bid == anchor { continue }
+            guard let _ = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first(where: { !$0.isTerminated }) else {
+                continue
+            }
+            previousAppBundleIdentifier = bid
+            return
+        }
+        previousAppBundleIdentifier = nil
+    }
+
+    func iconForPreviousApp() -> NSImage? {
+        guard let bid = previousAppBundleIdentifier else { return nil }
+        let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid)
+            ?? NSRunningApplication.runningApplications(withBundleIdentifier: bid).first?.bundleURL
+        guard let url else { return nil }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        icon.isTemplate = false
+        return icon
+    }
+
+    func accessibilityLabelForPreviousApp() -> String {
+        guard let bid = previousAppBundleIdentifier else {
+            return "Previous app"
+        }
+        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first(where: { !$0.isTerminated }) {
+            return running.localizedName.map { "Previous app: \($0)" } ?? "Previous app"
+        }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
+            let name = FileManager.default.displayName(atPath: url.path)
+            return "Previous app: \(name)"
+        }
+        return "Previous app"
+    }
+
+    func activatePreviousApp() {
+        guard let bid = previousAppBundleIdentifier else { return }
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first(where: { !$0.isTerminated }) else { return }
+        
+        if app.isHidden {
+            app.unhide()
+        }
+        
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        if let url = app.bundleURL {
+            NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: nil)
+        } else {
+            app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        }
+        
+        Self.deminimizeWindowsIfPossible(pid: app.processIdentifier)
+    }
+
+    private static func deminimizeWindowsIfPossible(pid: pid_t) {
+        guard AXIsProcessTrusted() else { return }
+        let appElem = AXUIElementCreateApplication(pid)
+        var windowsRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElem, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+              let windowList = windowsRef as? [AXUIElement]
+        else { return }
+        for window in windowList {
+            var minimizedRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef) == .success,
+                  let isMin = minimizedRef as? Bool, isMin
+            else { continue }
+            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        }
+    }
+}
+
+// MARK: - AI prompt
+
+final class AIPromptState: ObservableObject {
+    @Published var text: String = ""
+}
+
+struct AIPromptSectionView: View {
+    @ObservedObject var state: AIPromptState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $state.text)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color.white)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 100, idealHeight: 120, maxHeight: 140)
+
+                if state.text.isEmpty {
+                    Text("Ask anything…")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(Color.white.opacity(0.42))
+                        .padding(.top, 6)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                    .fill(Color.black.opacity(0.22))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+            )
+
+            Button {
+                copyToClipboard()
+            } label: {
+                HStack {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Copy prompt")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                        .fill(Color.white.opacity(0.16))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(state.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity(state.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+        }
+    }
+
+    private func copyToClipboard() {
+        let trimmed = state.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(trimmed, forType: .string)
     }
 }
 
@@ -315,6 +600,8 @@ class ToolbarCoordinator: NSObject {
     let panel = ToolbarPanel()
     let clipboard = ClipboardManager()
     let notes = NotesManager()
+    let previousApp = PreviousAppTracker()
+    let aiPrompt = AIPromptState()
     let flow = ToolbarFlowState()
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
@@ -327,6 +614,8 @@ class ToolbarCoordinator: NSObject {
             ToolbarContentView(
                 clipboard: clipboard,
                 notes: notes,
+                previousApp: previousApp,
+                aiPrompt: aiPrompt,
                 flow: flow,
                 onDismiss: { [weak self] in
                     self?.panel.orderOut(nil)
@@ -365,6 +654,7 @@ class ToolbarCoordinator: NSObject {
 
     func showMenu() {
         flow.reset()
+        previousApp.refreshForCurrentSpace()
 
         let mouseLoc = NSEvent.mouseLocation
         suppressDismissUntil = Date().addingTimeInterval(0.22)
@@ -377,6 +667,8 @@ class ToolbarCoordinator: NSObject {
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            // After we become key, recompute “previous” using `recent.last` as the effective front app.
+            self.previousApp.refreshForCurrentSpace()
             self.panel.resizeToFitContent(anchor: .screenPoint(NSEvent.mouseLocation))
             self.panel.orderFrontRegardless()
         }
