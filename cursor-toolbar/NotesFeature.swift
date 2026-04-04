@@ -2,13 +2,12 @@
 //  NotesFeature.swift
 //  cursor-toolbar
 //
-//  Created by George Valtas on 04/04/2026.
-//
 
-import SwiftUI
 import Combine
+import SwiftUI
 
 // MARK: - Notes Manager
+
 class NotesManager: ObservableObject {
     @Published var text: String = "" {
         didSet { save() }
@@ -25,51 +24,36 @@ class NotesManager: ObservableObject {
     }
 }
 
-// MARK: - Notes Dropdown View
-struct NotesDropdownView: View {
+// MARK: - Notes section (glass-styled editor)
+
+struct NotesSectionView: View {
     @ObservedObject var notes: NotesManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider()
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "note.text")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text("Quick Notes")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                }
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $notes.text)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(Color.white)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 108, idealHeight: 120, maxHeight: 140)
 
-                TextEditor(text: $notes.text)
-                    .font(.system(size: 12))
-                    .frame(width: 200, height: 120)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.primary.opacity(0.05))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
-                    .overlay(
-                        Group {
-                            if notes.text.isEmpty {
-                                Text("Write something...")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
-                                    .padding(.leading, 5)
-                                    .padding(.top, 8)
-                                    .allowsHitTesting(false)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                            }
-                        }
-                    )
+            if notes.text.isEmpty {
+                Text("Write something…")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.42))
+                    .padding(.top, 6)
+                    .padding(.leading, 5)
+                    .allowsHitTesting(false)
             }
-            .padding(10)
         }
-        .frame(width: 220)
-        .transition(.opacity.combined(with: .move(edge: .top)))
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                .fill(Color.black.opacity(0.22))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        )
     }
 }
