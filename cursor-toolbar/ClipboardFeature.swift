@@ -15,6 +15,7 @@ class ClipboardManager: ObservableObject {
     private var timer: Timer?
 
     private let saveKey = "clipboard_history"
+    private let maxHistoryCount = 5
 
     init() {
         load()
@@ -31,7 +32,7 @@ class ClipboardManager: ObservableObject {
         if let str = pb.string(forType: .string), !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             recentTexts.removeAll { $0 == str }
             recentTexts.insert(str, at: 0)
-            if recentTexts.count > 3 { recentTexts = Array(recentTexts.prefix(3)) }
+            if recentTexts.count > maxHistoryCount { recentTexts = Array(recentTexts.prefix(maxHistoryCount)) }
             save()
         }
     }
@@ -47,7 +48,8 @@ class ClipboardManager: ObservableObject {
     }
 
     private func load() {
-        recentTexts = UserDefaults.standard.stringArray(forKey: saveKey) ?? []
+        let loaded = UserDefaults.standard.stringArray(forKey: saveKey) ?? []
+        recentTexts = Array(loaded.prefix(maxHistoryCount))
     }
 
     deinit { timer?.invalidate() }

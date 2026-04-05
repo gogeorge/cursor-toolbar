@@ -9,6 +9,7 @@ import SwiftUI
 enum FolderShortcut: String, CaseIterable, Identifiable {
     case documents
     case downloads
+    case applications
     case library
 
     var id: String { rawValue }
@@ -17,6 +18,7 @@ enum FolderShortcut: String, CaseIterable, Identifiable {
         switch self {
         case .documents: "doc.text"
         case .downloads: "arrow.down.circle"
+        case .applications: "square.grid.2x2.fill"
         case .library: "books.vertical"
         }
     }
@@ -25,6 +27,7 @@ enum FolderShortcut: String, CaseIterable, Identifiable {
         switch self {
         case .documents: "Documents"
         case .downloads: "Downloads"
+        case .applications: "Applications"
         case .library: "Library"
         }
     }
@@ -36,6 +39,8 @@ enum FolderShortcut: String, CaseIterable, Identifiable {
             return home.appendingPathComponent("Documents", isDirectory: true)
         case .downloads:
             return home.appendingPathComponent("Downloads", isDirectory: true)
+        case .applications:
+            return URL(fileURLWithPath: "/Applications", isDirectory: true)
         case .library:
             return home.appendingPathComponent("Library", isDirectory: true)
         }
