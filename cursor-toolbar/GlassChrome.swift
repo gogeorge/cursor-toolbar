@@ -29,6 +29,8 @@ struct GlassPanelBackground: NSViewRepresentable {
 
 enum ToolbarGlass {
     static let outerRadius: CGFloat = 26
+    /// Smaller chrome for each cell in the full-dashboard 2×2 grid.
+    static let dashboardCellRadius: CGFloat = 20
     static let innerRadius: CGFloat = 18
     static let sectionSpacing: CGFloat = 14
     static let innerPadding = EdgeInsets(top: 18, leading: 18, bottom: 18, trailing: 18)

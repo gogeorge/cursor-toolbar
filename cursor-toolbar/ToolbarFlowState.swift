@@ -15,15 +15,46 @@ enum ToolbarSheetMode: Equatable {
     case full
 }
 
+/// Tiles that can appear on the full dashboard (order is preserved).
+enum DashboardModule: String, CaseIterable, Codable, Identifiable {
+    case folders
+    case notes
+    case aiPrompt
+    case clipboard
+    case commands
+
+    var id: String { rawValue }
+
+    var panelTitle: String {
+        switch self {
+        case .folders: "Folders"
+        case .notes: "Notes"
+        case .aiPrompt: "AI prompt"
+        case .clipboard: "Clipboard"
+        case .commands: "Commands"
+        }
+    }
+}
+
 final class ToolbarFlowState: ObservableObject {
     @Published var sheetMode: ToolbarSheetMode = .collapsed
     @Published var isPanelVisible: Bool = false
+    /// Home-screen style: tiles wiggle and show remove badges.
+    @Published var isEditingDashboard: Bool = false
+    /// Shown modules in left-to-right, top-to-bottom order. Commands is omitted by default.
+    @Published var dashboardModules: [DashboardModule] = [.folders, .notes, .aiPrompt, .clipboard]
+
+    private let dashboardKey = "toolbar_dashboard_modules_v1"
 
     var isGlassActive: Bool { sheetMode != .collapsed }
 
+    init() {
+        loadDashboardModules()
+    }
+
     func reset() {
         sheetMode = .collapsed
-        // isPanelVisible is managed by ToolbarCoordinator.
+        isEditingDashboard = false
     }
 
     func toggleStandardFolders() {
@@ -63,5 +94,47 @@ final class ToolbarFlowState: ObservableObject {
         case .full: sheetMode = .collapsed
         default: sheetMode = .full
         }
+    }
+
+    func toggleDashboardEditMode() {
+        isEditingDashboard.toggle()
+        if !isEditingDashboard {
+            saveDashboardModules()
+        }
+    }
+
+    /// Leaving full layout (e.g. opening a single panel) exits jiggle mode.
+    func cancelDashboardEdit() {
+        guard isEditingDashboard else { return }
+        isEditingDashboard = false
+        saveDashboardModules()
+    }
+
+    func removeDashboardModule(_ module: DashboardModule) {
+        dashboardModules.removeAll { $0 == module }
+        saveDashboardModules()
+    }
+
+    func addDashboardModule(_ module: DashboardModule) {
+        guard !dashboardModules.contains(module) else { return }
+        dashboardModules.append(module)
+        saveDashboardModules()
+    }
+
+    var dashboardModulesToAdd: [DashboardModule] {
+        DashboardModule.allCases.filter { !dashboardModules.contains($0) }
+    }
+
+    private func loadDashboardModules() {
+        guard let data = UserDefaults.standard.data(forKey: dashboardKey),
+              let decoded = try? JSONDecoder().decode([DashboardModule].self, from: data)
+        else { return }
+        let allowed = Set(DashboardModule.allCases)
+        dashboardModules = decoded.filter { allowed.contains($0) }
+    }
+
+    private func saveDashboardModules() {
+        guard let data = try? JSONEncoder().encode(dashboardModules) else { return }
+        UserDefaults.standard.set(data, forKey: dashboardKey)
     }
 }

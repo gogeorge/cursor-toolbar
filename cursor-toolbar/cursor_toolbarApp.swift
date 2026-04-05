@@ -91,6 +91,23 @@ class ToolbarPanel: NSPanel {
 
 // MARK: - Toolbar SwiftUI content
 
+/// Subtle continuous rotation while the dashboard is in “edit” mode (similar to iOS icon jiggle).
+private struct DashboardTileWiggleModifier: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            TimelineView(.animation(minimumInterval: 1.0 / 32.0)) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let angle = sin(t * 10.8) * 1.65
+                content.rotationEffect(.degrees(angle))
+            }
+        } else {
+            content
+        }
+    }
+}
+
 struct ToolbarContentView: View {
     @ObservedObject var clipboard: ClipboardManager
     @ObservedObject var notes: NotesManager
@@ -103,7 +120,11 @@ struct ToolbarContentView: View {
     private let iconDiameter: CGFloat = 44
     private let iconOrbitRadius: CGFloat = 78
     private let iconStackSpacing: CGFloat = 8
+    /// Same gap as between the icon rail and the glass panel (`HStack` below).
+    private let iconToPanelSpacing: CGFloat = 14
     private static let slotCount = 6
+    /// Square dashboard tiles (width and height match).
+    private static let dashboardCellSize: CGFloat = 272
 
     private var linearRail: Bool { flow.sheetMode == .full }
 
@@ -119,16 +140,26 @@ struct ToolbarContentView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: iconToPanelSpacing) {
             iconOrbit
             if flow.isGlassActive && flow.isPanelVisible {
-                glassPanel
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.9, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -16)),
-                            removal: .scale(scale: 0.9, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -16))
-                        )
+                Group {
+                    if flow.sheetMode == .full {
+                        HStack(alignment: .top, spacing: iconToPanelSpacing) {
+                            fullDashboardGrid
+                            fullExpandTrailingColumn
+                                .frame(width: iconColumnWidth)
+                        }
+                    } else {
+                        glassPanel
+                    }
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.9, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -16)),
+                        removal: .scale(scale: 0.9, anchor: .leading).combined(with: .opacity).combined(with: .offset(x: -16))
                     )
+                )
             }
         }
         .padding(rootPadding)
@@ -136,7 +167,16 @@ struct ToolbarContentView: View {
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: linearRail)
         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: flow.isPanelVisible)
         .background(Color.clear)
-        .onChange(of: flow.sheetMode) { _, _ in
+        .onChange(of: flow.sheetMode) { _, newMode in
+            if newMode != .full {
+                flow.cancelDashboardEdit()
+            }
+            onLayoutChange()
+        }
+        .onChange(of: flow.isEditingDashboard) { _, _ in
+            onLayoutChange()
+        }
+        .onChange(of: flow.dashboardModules.map(\.rawValue).joined(separator: "|")) { _, _ in
             onLayoutChange()
         }
         .onAppear { onLayoutChange() }
@@ -195,7 +235,7 @@ struct ToolbarContentView: View {
             let foldersOpen = flow.sheetMode == .standardFolders || flow.sheetMode == .full
             circularIconButton(
                 isActive: flow.sheetMode == .standardFolders,
-                accessibilityLabel: "Downloads, Documents, and Library",
+                accessibilityLabel: "Folders: Documents, Downloads, Applications, and Library",
                 action: { flow.toggleStandardFolders() }
             ) {
                 HStack(spacing: 2) {
@@ -296,12 +336,192 @@ struct ToolbarContentView: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
+    private var fullExpandTrailingColumn: some View {
+        VStack(spacing: iconStackSpacing) {
+            circularIconButton(
+                isActive: false,
+                accessibilityLabel: "Settings",
+                action: { openToolbarSettings() }
+            ) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .medium))
+            }
+            circularIconButton(
+                isActive: flow.isEditingDashboard,
+                accessibilityLabel: flow.isEditingDashboard ? "Done editing dashboard" : "Edit dashboard",
+                action: {
+                    guard flow.sheetMode == .full else { return }
+                    flow.toggleDashboardEditMode()
+                }
+            ) {
+                Image(systemName: flow.isEditingDashboard ? "checkmark.circle.fill" : "pencil")
+                    .font(.system(size: 18, weight: .medium))
+            }
+            circularIconButton(
+                isActive: false,
+                accessibilityLabel: "Cursor toolbar",
+                action: {}
+            ) {
+                Image("CursorLogoWhite")
+                    .renderingMode(.template)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+            }
+        }
+    }
+
+    private func openToolbarSettings() {
+        if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+    }
+
+    /// Full dashboard: glass tiles in a 2-column grid; edit mode wiggles tiles and shows remove controls (like iOS home screen).
+    private var fullDashboardGrid: some View {
+        let gap = iconToPanelSpacing
+        let cell = Self.dashboardCellSize
+        let columns = [
+            GridItem(.fixed(cell), spacing: gap, alignment: .top),
+            GridItem(.fixed(cell), spacing: gap, alignment: .top),
+        ]
+        return VStack(alignment: .leading, spacing: gap + 4) {
+            if flow.dashboardModules.isEmpty {
+                Text(flow.isEditingDashboard ? "No panels on the dashboard. Add one below." : "Dashboard is empty. Tap Edit to add panels.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .frame(width: cell * 2 + gap, alignment: .leading)
+                    .padding(.vertical, 8)
+            }
+            LazyVGrid(columns: columns, alignment: .leading, spacing: gap) {
+                ForEach(flow.dashboardModules) { module in
+                    ZStack(alignment: .topLeading) {
+                        dashboardCell(size: cell, contentLocked: flow.isEditingDashboard) {
+                            dashboardModuleContent(module)
+                        }
+                        if flow.isEditingDashboard {
+                            Button {
+                                flow.removeDashboardModule(module)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(Color.white, Color.black.opacity(0.45))
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove \(module.panelTitle) from dashboard")
+                            .offset(x: -10, y: -10)
+                        }
+                    }
+                    .modifier(DashboardTileWiggleModifier(active: flow.isEditingDashboard))
+                }
+            }
+            if flow.isEditingDashboard, !flow.dashboardModulesToAdd.isEmpty {
+                dashboardAddPalette(gap: gap, cell: cell)
+            }
+        }
+    }
+
+    private func dashboardAddPalette(gap: CGFloat, cell: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Add to dashboard")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.9))
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(flow.dashboardModulesToAdd) { module in
+                    Button {
+                        flow.addDashboardModule(module)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.white, Color.white.opacity(0.28))
+                            Text(module.panelTitle)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.white)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: cell * 2 + gap, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: ToolbarGlass.dashboardCellRadius, style: .continuous)
+                                .fill(Color.white.opacity(0.12))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ToolbarGlass.dashboardCellRadius, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add \(module.panelTitle)")
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func dashboardModuleContent(_ module: DashboardModule) -> some View {
+        switch module {
+        case .folders:
+            sectionBlock(title: module.panelTitle) {
+                FinderFoldersColumn()
+            }
+        case .notes:
+            sectionBlock(title: module.panelTitle) {
+                NotesSectionView(notes: notes, useCompactEditor: true)
+            }
+        case .aiPrompt:
+            sectionBlock(title: module.panelTitle) {
+                AIPromptSectionView(state: aiPrompt)
+            }
+        case .clipboard:
+            sectionBlock(title: module.panelTitle) {
+                ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
+            }
+        case .commands:
+            sectionBlock(title: module.panelTitle) {
+                CommandsSectionView()
+            }
+        }
+    }
+
+    private func dashboardCell<Content: View>(size: CGFloat, contentLocked: Bool, @ViewBuilder content: () -> Content) -> some View {
+        let r = ToolbarGlass.dashboardCellRadius
+        let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+        let pad = EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
+        return ScrollView {
+            content()
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(pad)
+        }
+        .scrollIndicators(.hidden)
+        .allowsHitTesting(!contentLocked)
+        .frame(width: size, height: size)
+        .background {
+            ZStack {
+                GlassPanelBackground(cornerRadius: r)
+                shape.fill(ToolbarGlass.tint)
+            }
+        }
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(Color.white.opacity(ToolbarGlass.borderOpacity), lineWidth: 1)
+        )
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.06), radius: 5, x: 0, y: 2)
+    }
+
     private var glassPanel: some View {
         let shape = RoundedRectangle(cornerRadius: ToolbarGlass.outerRadius, style: .continuous)
 
         let card = VStack(alignment: .leading, spacing: 0) {
             switch flow.sheetMode {
-            case .collapsed:
+            case .collapsed, .full:
                 EmptyView()
             case .standardFolders:
                 sectionBlock(title: "Folders") {
@@ -315,21 +535,6 @@ struct ToolbarContentView: View {
                 NotesSectionView(notes: notes)
             case .clipboard:
                 ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
-            case .full:
-                VStack(alignment: .leading, spacing: ToolbarGlass.sectionSpacing) {
-                    sectionBlock(title: "Folders") {
-                        FinderFoldersColumn()
-                    }
-                    sectionBlock(title: "AI prompt") {
-                        AIPromptSectionView(state: aiPrompt)
-                    }
-                    sectionBlock(title: "Notes") {
-                        NotesSectionView(notes: notes)
-                    }
-                    sectionBlock(title: "Clipboard") {
-                        ClipboardSectionView(clipboard: clipboard, onCopyItem: onDismiss)
-                    }
-                }
             }
         }
         .frame(width: 272, alignment: .leading)

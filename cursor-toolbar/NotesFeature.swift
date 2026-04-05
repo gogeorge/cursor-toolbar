@@ -136,6 +136,8 @@ struct StickyNotesContentView: View {
 
 struct NotesSectionView: View {
     @ObservedObject var notes: NotesManager
+    /// Tighter editor for dashboard tiles so the outer cell does not need its own scrollbar.
+    var useCompactEditor: Bool = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -144,7 +146,11 @@ struct NotesSectionView: View {
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Color.white)
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 108, idealHeight: 120, maxHeight: 140)
+                    .frame(
+                        minHeight: useCompactEditor ? 96 : 200,
+                        idealHeight: useCompactEditor ? 120 : 240,
+                        maxHeight: useCompactEditor ? 132 : 240
+                    )
 
                 if notes.text.isEmpty {
                     Text("Write something…")
