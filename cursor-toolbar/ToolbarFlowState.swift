@@ -45,6 +45,8 @@ final class ToolbarFlowState: ObservableObject {
     @Published var dashboardModules: [DashboardModule] = [.folders, .notes, .aiPrompt, .clipboard]
 
     private let dashboardKey = "toolbar_dashboard_modules_v1"
+    /// Snapshot when entering dashboard edit mode; used to discard changes on cancel.
+    private var dashboardModulesSnapshot: [DashboardModule]?
 
     var isGlassActive: Bool { sheetMode != .collapsed }
 
@@ -55,6 +57,7 @@ final class ToolbarFlowState: ObservableObject {
     func reset() {
         sheetMode = .collapsed
         isEditingDashboard = false
+        dashboardModulesSnapshot = nil
     }
 
     func toggleStandardFolders() {
@@ -97,15 +100,34 @@ final class ToolbarFlowState: ObservableObject {
     }
 
     func toggleDashboardEditMode() {
-        isEditingDashboard.toggle()
-        if !isEditingDashboard {
+        if isEditingDashboard {
+            dashboardModulesSnapshot = nil
+            isEditingDashboard = false
             saveDashboardModules()
+        } else {
+            dashboardModulesSnapshot = dashboardModules
+            isEditingDashboard = true
         }
+    }
+
+    /// Reverts dashboard layout to when edit mode started and exits edit mode.
+    func cancelDashboardEditDiscardingChanges() {
+        guard isEditingDashboard else { return }
+        if let snap = dashboardModulesSnapshot {
+            dashboardModules = snap
+        }
+        dashboardModulesSnapshot = nil
+        isEditingDashboard = false
+        saveDashboardModules()
     }
 
     /// Leaving full layout (e.g. opening a single panel) exits jiggle mode.
     func cancelDashboardEdit() {
         guard isEditingDashboard else { return }
+        if let snap = dashboardModulesSnapshot {
+            dashboardModules = snap
+        }
+        dashboardModulesSnapshot = nil
         isEditingDashboard = false
         saveDashboardModules()
     }

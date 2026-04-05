@@ -147,6 +147,9 @@ struct ToolbarContentView: View {
                     if flow.sheetMode == .full {
                         HStack(alignment: .top, spacing: iconToPanelSpacing) {
                             fullDashboardGrid
+                            if flow.isEditingDashboard, !flow.dashboardModulesToAdd.isEmpty {
+                                dashboardAddModulePanel(gap: iconToPanelSpacing, cell: Self.dashboardCellSize)
+                            }
                             fullExpandTrailingColumn
                                 .frame(width: iconColumnWidth)
                         }
@@ -346,16 +349,41 @@ struct ToolbarContentView: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 18, weight: .medium))
             }
-            circularIconButton(
-                isActive: flow.isEditingDashboard,
-                accessibilityLabel: flow.isEditingDashboard ? "Done editing dashboard" : "Edit dashboard",
-                action: {
-                    guard flow.sheetMode == .full else { return }
-                    flow.toggleDashboardEditMode()
+            if flow.isEditingDashboard {
+                circularIconButton(
+                    isActive: true,
+                    accessibilityLabel: "Done editing dashboard",
+                    action: {
+                        guard flow.sheetMode == .full else { return }
+                        flow.toggleDashboardEditMode()
+                    }
+                ) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .medium))
                 }
-            ) {
-                Image(systemName: flow.isEditingDashboard ? "checkmark.circle.fill" : "pencil")
-                    .font(.system(size: 18, weight: .medium))
+                circularIconButton(
+                    isActive: false,
+                    accessibilityLabel: "Cancel dashboard edits",
+                    action: {
+                        guard flow.sheetMode == .full else { return }
+                        flow.cancelDashboardEditDiscardingChanges()
+                    }
+                ) {
+                    Image(systemName: "xmark.circle")
+                        .font(.system(size: 18, weight: .medium))
+                }
+            } else {
+                circularIconButton(
+                    isActive: false,
+                    accessibilityLabel: "Edit dashboard",
+                    action: {
+                        guard flow.sheetMode == .full else { return }
+                        flow.toggleDashboardEditMode()
+                    }
+                ) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 18, weight: .medium))
+                }
             }
             circularIconButton(
                 isActive: false,
@@ -388,7 +416,7 @@ struct ToolbarContentView: View {
         ]
         return VStack(alignment: .leading, spacing: gap + 4) {
             if flow.dashboardModules.isEmpty {
-                Text(flow.isEditingDashboard ? "No panels on the dashboard. Add one below." : "Dashboard is empty. Tap Edit to add panels.")
+                Text(flow.isEditingDashboard ? "No panels on the dashboard. Add one from the list." : "Dashboard is empty. Tap Edit to add panels.")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.55))
                     .frame(width: cell * 2 + gap, alignment: .leading)
@@ -418,13 +446,39 @@ struct ToolbarContentView: View {
                     .modifier(DashboardTileWiggleModifier(active: flow.isEditingDashboard))
                 }
             }
-            if flow.isEditingDashboard, !flow.dashboardModulesToAdd.isEmpty {
-                dashboardAddPalette(gap: gap, cell: cell)
-            }
         }
     }
 
-    private func dashboardAddPalette(gap: CGFloat, cell: CGFloat) -> some View {
+    /// Narrow glass column for modules not yet on the dashboard (smaller than grid cells).
+    private func dashboardAddModulePanel(gap: CGFloat, cell: CGFloat) -> some View {
+        let r = ToolbarGlass.dashboardCellRadius
+        let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+        let addPanelWidth: CGFloat = 212
+        let pad = EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
+        return ScrollView {
+            dashboardAddPaletteList()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(pad)
+        }
+        .scrollIndicators(.hidden)
+        .frame(width: addPanelWidth)
+        .frame(maxHeight: cell * 2 + gap)
+        .background {
+            ZStack {
+                GlassPanelBackground(cornerRadius: r)
+                shape.fill(ToolbarGlass.tint)
+            }
+        }
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(Color.white.opacity(ToolbarGlass.borderOpacity), lineWidth: 1)
+        )
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.06), radius: 5, x: 0, y: 2)
+    }
+
+    private func dashboardAddPaletteList() -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Add to dashboard")
                 .font(.system(size: 13, weight: .semibold))
@@ -434,25 +488,26 @@ struct ToolbarContentView: View {
                     Button {
                         flow.addDashboardModule(module)
                     } label: {
-                        HStack(spacing: 10) {
+                        HStack(spacing: 8) {
                             Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 20, weight: .semibold))
+                                .font(.system(size: 18, weight: .semibold))
                                 .foregroundStyle(Color.white, Color.white.opacity(0.28))
                             Text(module.panelTitle)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(Color.white)
+                                .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: cell * 2 + gap, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
-                            RoundedRectangle(cornerRadius: ToolbarGlass.dashboardCellRadius, style: .continuous)
-                                .fill(Color.white.opacity(0.12))
+                            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                                .fill(Color.black.opacity(0.22))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: ToolbarGlass.dashboardCellRadius, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -460,7 +515,6 @@ struct ToolbarContentView: View {
                 }
             }
         }
-        .padding(.top, 4)
     }
 
     @ViewBuilder
@@ -742,7 +796,7 @@ struct AIPromptSectionView: View {
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(Color.white)
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 100, idealHeight: 120, maxHeight: 140)
+                    .frame(minHeight: 120, idealHeight: 140, maxHeight: 160)
 
                 if state.text.isEmpty {
                     Text("Ask anything…")

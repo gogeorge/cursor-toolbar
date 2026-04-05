@@ -89,11 +89,6 @@ enum ShellCommandRunner {
 struct CommandsSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tap a shortcut to run it. Commands use macOS built-in tools.")
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(Color.white.opacity(0.55))
-                .fixedSize(horizontal: false, vertical: true)
-
             VStack(spacing: 8) {
                 ForEach(ShellPreset.all) { preset in
                     Button {

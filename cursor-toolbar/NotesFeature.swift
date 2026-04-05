@@ -147,9 +147,9 @@ struct NotesSectionView: View {
                     .foregroundStyle(Color.white)
                     .scrollContentBackground(.hidden)
                     .frame(
-                        minHeight: useCompactEditor ? 96 : 200,
-                        idealHeight: useCompactEditor ? 120 : 240,
-                        maxHeight: useCompactEditor ? 132 : 240
+                        minHeight: useCompactEditor ? 116 : 220,
+                        idealHeight: useCompactEditor ? 140 : 260,
+                        maxHeight: useCompactEditor ? 152 : 260
                     )
 
                 if notes.text.isEmpty {
