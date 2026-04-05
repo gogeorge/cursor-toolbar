@@ -66,7 +66,11 @@ struct ToolbarContentView: View {
                         HStack(alignment: .top, spacing: iconToPanelSpacing) {
                             fullDashboardGrid
                             if flow.isEditingDashboard, !flow.dashboardModulesToAdd.isEmpty {
-                                dashboardAddModulePanel(gap: iconToPanelSpacing, cell: Self.dashboardCellSize)
+                                dashboardAddModulePanel(
+                                    gap: iconToPanelSpacing,
+                                    cell: Self.dashboardCellSize,
+                                    itemCount: flow.dashboardModulesToAdd.count
+                                )
                             }
                             fullExpandTrailingColumn
                                 .frame(width: iconColumnWidth)
@@ -367,20 +371,40 @@ struct ToolbarContentView: View {
         }
     }
 
+    /// Vertical size of the “Add to dashboard” palette from layout constants (matches `dashboardAddPaletteList` padding and rows).
+    private static func addPanelIdealHeight(itemCount: Int) -> CGFloat {
+        let padV = CGFloat(12 + 12)
+        let titleLine: CGFloat = 20
+        let titleToList: CGFloat = 10
+        let rowHeight: CGFloat = 44
+        let rowGap: CGFloat = 8
+        let listH = CGFloat(itemCount) * rowHeight + CGFloat(max(0, itemCount - 1)) * rowGap
+        return padV + titleLine + titleToList + listH
+    }
+
     /// Narrow glass column for modules not yet on the dashboard (smaller than grid cells).
-    private func dashboardAddModulePanel(gap: CGFloat, cell: CGFloat) -> some View {
+    private func dashboardAddModulePanel(gap: CGFloat, cell: CGFloat, itemCount: Int) -> some View {
         let r = ToolbarGlass.dashboardCellRadius
         let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
         let addPanelWidth: CGFloat = 212
         let pad = EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
-        return ScrollView {
-            dashboardAddPaletteList()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(pad)
+        let maxPanelHeight = cell * 2 + gap
+        let idealContentHeight = Self.addPanelIdealHeight(itemCount: itemCount)
+        let list = dashboardAddPaletteList()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(pad)
+        return Group {
+            if idealContentHeight <= maxPanelHeight {
+                list
+                    .frame(width: addPanelWidth, alignment: .leading)
+            } else {
+                ScrollView {
+                    list
+                }
+                .scrollIndicators(.hidden)
+                .frame(width: addPanelWidth, height: maxPanelHeight)
+            }
         }
-        .scrollIndicators(.hidden)
-        .frame(width: addPanelWidth)
-        .frame(maxHeight: cell * 2 + gap)
         .background {
             ZStack {
                 GlassPanelBackground(cornerRadius: r)
@@ -413,6 +437,8 @@ struct ToolbarContentView: View {
                             Text(module.panelTitle)
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(Color.white)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
                         }
