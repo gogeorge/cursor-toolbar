@@ -22,6 +22,7 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     case aiPrompt
     case clipboard
     case commands
+    case aiWidgetBuilder
 
     var id: String { rawValue }
 
@@ -32,6 +33,74 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
         case .aiPrompt: "AI prompt"
         case .clipboard: "Clipboard"
         case .commands: "Commands"
+        case .aiWidgetBuilder: "AI widget builder"
+        }
+    }
+}
+
+// MARK: - Widget Blueprint (JSON-based runtime rendering)
+
+struct WidgetStyle: Codable, Equatable {
+    var fontSize: CGFloat?
+    var fontWeight: String?      // "regular", "medium", "semibold", "bold", "heavy"
+    var opacity: Double?
+    var alignment: String?       // "leading", "center", "trailing"
+    var spacing: CGFloat?
+    var monospacedDigits: Bool?
+    var color: String?           // "white", "secondary", "accent"
+}
+
+struct WidgetElement: Codable, Equatable, Identifiable {
+    var id: String?
+    var type: String             // "text","liveTime","liveDate","spacer","divider","vstack","hstack","systemInfo","progressRing","image","apiText"
+    var content: String?         // static text, date format, SF Symbol name, system info key
+    var style: WidgetStyle?
+    var children: [WidgetElement]?
+
+    // apiText-specific fields
+    var dataSourceId: String?
+    var keyPath: String?         // dot-path into JSON response
+    var prefix: String?
+    var suffix: String?
+    var fallback: String?
+}
+
+struct WidgetDataSource: Codable, Equatable {
+    let id: String
+    let url: String
+    var method: String?          // "GET" (default)
+    var headers: [String: String]?
+    var refreshIntervalSeconds: Double?
+}
+
+struct WidgetBlueprint: Codable, Equatable {
+    var dataSources: [WidgetDataSource]?
+    var elements: [WidgetElement]
+}
+
+struct GeneratedWidgetDefinition: Codable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let requestText: String
+    let generatedSummary: String
+    var blueprint: WidgetBlueprint?
+}
+
+enum DashboardDisplayItem: Identifiable, Equatable {
+    case builtIn(DashboardModule)
+    case generated(GeneratedWidgetDefinition)
+
+    var id: String {
+        switch self {
+        case .builtIn(let module): return "builtin:\(module.rawValue)"
+        case .generated(let widget): return "generated:\(widget.id)"
+        }
+    }
+
+    var panelTitle: String {
+        switch self {
+        case .builtIn(let module): return module.panelTitle
+        case .generated(let widget): return widget.title
         }
     }
 }
@@ -43,21 +112,30 @@ final class ToolbarFlowState: ObservableObject {
     @Published var isEditingDashboard: Bool = false
     /// Shown modules in left-to-right, top-to-bottom order. Commands is omitted by default.
     @Published var dashboardModules: [DashboardModule] = [.folders, .notes, .aiPrompt, .clipboard]
+    /// Runtime-generated widgets that can be added without app restart.
+    @Published var generatedWidgets: [GeneratedWidgetDefinition] = []
+    @Published var dashboardGeneratedWidgetIDs: [String] = []
 
     private let dashboardKey = "toolbar_dashboard_modules_v1"
+    private let generatedWidgetsKey = "toolbar_generated_widgets_v1"
+    private let dashboardGeneratedWidgetIDsKey = "toolbar_dashboard_generated_widget_ids_v1"
     /// Snapshot when entering dashboard edit mode; used to discard changes on cancel.
     private var dashboardModulesSnapshot: [DashboardModule]?
+    private var dashboardGeneratedWidgetIDsSnapshot: [String]?
 
     var isGlassActive: Bool { sheetMode != .collapsed }
 
     init() {
         loadDashboardModules()
+        loadGeneratedWidgets()
+        loadDashboardGeneratedWidgetIDs()
     }
 
     func reset() {
         sheetMode = .collapsed
         isEditingDashboard = false
         dashboardModulesSnapshot = nil
+        dashboardGeneratedWidgetIDsSnapshot = nil
     }
 
     func toggleStandardFolders() {
@@ -102,10 +180,13 @@ final class ToolbarFlowState: ObservableObject {
     func toggleDashboardEditMode() {
         if isEditingDashboard {
             dashboardModulesSnapshot = nil
+            dashboardGeneratedWidgetIDsSnapshot = nil
             isEditingDashboard = false
             saveDashboardModules()
+            saveDashboardGeneratedWidgetIDs()
         } else {
             dashboardModulesSnapshot = dashboardModules
+            dashboardGeneratedWidgetIDsSnapshot = dashboardGeneratedWidgetIDs
             isEditingDashboard = true
         }
     }
@@ -116,9 +197,14 @@ final class ToolbarFlowState: ObservableObject {
         if let snap = dashboardModulesSnapshot {
             dashboardModules = snap
         }
+        if let snap = dashboardGeneratedWidgetIDsSnapshot {
+            dashboardGeneratedWidgetIDs = snap
+        }
         dashboardModulesSnapshot = nil
+        dashboardGeneratedWidgetIDsSnapshot = nil
         isEditingDashboard = false
         saveDashboardModules()
+        saveDashboardGeneratedWidgetIDs()
     }
 
     /// Leaving full layout (e.g. opening a single panel) exits jiggle mode.
@@ -127,9 +213,14 @@ final class ToolbarFlowState: ObservableObject {
         if let snap = dashboardModulesSnapshot {
             dashboardModules = snap
         }
+        if let snap = dashboardGeneratedWidgetIDsSnapshot {
+            dashboardGeneratedWidgetIDs = snap
+        }
         dashboardModulesSnapshot = nil
+        dashboardGeneratedWidgetIDsSnapshot = nil
         isEditingDashboard = false
         saveDashboardModules()
+        saveDashboardGeneratedWidgetIDs()
     }
 
     func removeDashboardModule(_ module: DashboardModule) {
@@ -143,8 +234,43 @@ final class ToolbarFlowState: ObservableObject {
         saveDashboardModules()
     }
 
+    func removeGeneratedWidgetFromDashboard(_ widgetID: String) {
+        dashboardGeneratedWidgetIDs.removeAll { $0 == widgetID }
+        saveDashboardGeneratedWidgetIDs()
+    }
+
+    func addGeneratedWidgetToDashboard(_ widgetID: String) {
+        guard generatedWidgets.contains(where: { $0.id == widgetID }) else { return }
+        guard !dashboardGeneratedWidgetIDs.contains(widgetID) else { return }
+        dashboardGeneratedWidgetIDs.append(widgetID)
+        saveDashboardGeneratedWidgetIDs()
+    }
+
+    func registerGeneratedWidget(_ widget: GeneratedWidgetDefinition) {
+        generatedWidgets.removeAll { $0.id == widget.id }
+        generatedWidgets.append(widget)
+        saveGeneratedWidgets()
+    }
+
+    func deleteGeneratedWidget(_ widgetID: String) {
+        removeGeneratedWidgetFromDashboard(widgetID)
+        generatedWidgets.removeAll { $0.id == widgetID }
+        saveGeneratedWidgets()
+    }
+
     var dashboardModulesToAdd: [DashboardModule] {
         DashboardModule.allCases.filter { !dashboardModules.contains($0) }
+    }
+
+    var dashboardGeneratedWidgetsToAdd: [GeneratedWidgetDefinition] {
+        generatedWidgets.filter { !dashboardGeneratedWidgetIDs.contains($0.id) }
+    }
+
+    var dashboardDisplayItems: [DashboardDisplayItem] {
+        var items = dashboardModules.map { DashboardDisplayItem.builtIn($0) }
+        let generatedShown = generatedWidgets.filter { dashboardGeneratedWidgetIDs.contains($0.id) }
+        items.append(contentsOf: generatedShown.map { DashboardDisplayItem.generated($0) })
+        return items
     }
 
     private func loadDashboardModules() {
@@ -158,5 +284,29 @@ final class ToolbarFlowState: ObservableObject {
     private func saveDashboardModules() {
         guard let data = try? JSONEncoder().encode(dashboardModules) else { return }
         UserDefaults.standard.set(data, forKey: dashboardKey)
+    }
+
+    private func loadGeneratedWidgets() {
+        guard let data = UserDefaults.standard.data(forKey: generatedWidgetsKey),
+              let decoded = try? JSONDecoder().decode([GeneratedWidgetDefinition].self, from: data)
+        else { return }
+        generatedWidgets = decoded
+    }
+
+    private func saveGeneratedWidgets() {
+        guard let data = try? JSONEncoder().encode(generatedWidgets) else { return }
+        UserDefaults.standard.set(data, forKey: generatedWidgetsKey)
+    }
+
+    private func loadDashboardGeneratedWidgetIDs() {
+        guard let data = UserDefaults.standard.data(forKey: dashboardGeneratedWidgetIDsKey),
+              let decoded = try? JSONDecoder().decode([String].self, from: data)
+        else { return }
+        dashboardGeneratedWidgetIDs = decoded
+    }
+
+    private func saveDashboardGeneratedWidgetIDs() {
+        guard let data = try? JSONEncoder().encode(dashboardGeneratedWidgetIDs) else { return }
+        UserDefaults.standard.set(data, forKey: dashboardGeneratedWidgetIDsKey)
     }
 }
