@@ -29,6 +29,7 @@ class ToolbarCoordinator: NSObject {
     let notes = NotesManager()
     let previousApp = PreviousAppTracker()
     let aiPrompt = AIPromptState()
+    let aiWidgetBuilder = AIWidgetBuilderState()
     let flow = ToolbarFlowState()
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
@@ -37,12 +38,16 @@ class ToolbarCoordinator: NSObject {
 
     override init() {
         super.init()
+        // Bridge for immediate registration
+        aiWidgetBuilder.flow = flow
+        
         panel.setContent(
             ToolbarContentView(
                 clipboard: clipboard,
                 notes: notes,
                 previousApp: previousApp,
                 aiPrompt: aiPrompt,
+                aiWidgetBuilder: aiWidgetBuilder,
                 flow: flow,
                 onDismiss: { [weak self] in
                     self?.hideMenu()

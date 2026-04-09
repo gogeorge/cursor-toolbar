@@ -31,6 +31,7 @@ struct ToolbarContentView: View {
     @ObservedObject var notes: NotesManager
     @ObservedObject var previousApp: PreviousAppTracker
     @ObservedObject var aiPrompt: AIPromptState
+    @ObservedObject var aiWidgetBuilder: AIWidgetBuilderState
     @ObservedObject var flow: ToolbarFlowState
     var onDismiss: () -> Void
     var onLayoutChange: () -> Void
@@ -65,11 +66,11 @@ struct ToolbarContentView: View {
                     if flow.sheetMode == .full {
                         HStack(alignment: .top, spacing: iconToPanelSpacing) {
                             fullDashboardGrid
-                            if flow.isEditingDashboard, !flow.dashboardModulesToAdd.isEmpty {
+                            if flow.isEditingDashboard, !(flow.dashboardModulesToAdd.isEmpty && flow.dashboardGeneratedWidgetsToAdd.isEmpty) {
                                 dashboardAddModulePanel(
                                     gap: iconToPanelSpacing,
                                     cell: Self.dashboardCellSize,
-                                    itemCount: flow.dashboardModulesToAdd.count
+                                    itemCount: flow.dashboardModulesToAdd.count + flow.dashboardGeneratedWidgetsToAdd.count
                                 )
                             }
                             fullExpandTrailingColumn
@@ -337,7 +338,7 @@ struct ToolbarContentView: View {
             GridItem(.fixed(cell), spacing: gap, alignment: .top),
         ]
         return VStack(alignment: .leading, spacing: gap + 4) {
-            if flow.dashboardModules.isEmpty {
+            if flow.dashboardDisplayItems.isEmpty {
                 Text(flow.isEditingDashboard ? "No panels on the dashboard. Add one from the list." : "Dashboard is empty. Tap Edit to add panels.")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.55))
@@ -345,14 +346,14 @@ struct ToolbarContentView: View {
                     .padding(.vertical, 8)
             }
             LazyVGrid(columns: columns, alignment: .leading, spacing: gap) {
-                ForEach(flow.dashboardModules) { module in
+                ForEach(flow.dashboardDisplayItems) { item in
                     ZStack(alignment: .topLeading) {
                         dashboardCell(size: cell, contentLocked: flow.isEditingDashboard) {
-                            dashboardModuleContent(module)
+                            dashboardItemContent(item)
                         }
                         if flow.isEditingDashboard {
                             Button {
-                                flow.removeDashboardModule(module)
+                                removeDashboardItem(item)
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .symbolRenderingMode(.palette)
@@ -361,7 +362,7 @@ struct ToolbarContentView: View {
                                     .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Remove \(module.panelTitle) from dashboard")
+                            .accessibilityLabel("Remove \(item.panelTitle) from dashboard")
                             .offset(x: -10, y: -10)
                         }
                     }
@@ -386,7 +387,8 @@ struct ToolbarContentView: View {
     private func dashboardAddModulePanel(gap: CGFloat, cell: CGFloat, itemCount: Int) -> some View {
         let r = ToolbarGlass.dashboardCellRadius
         let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
-        let addPanelWidth: CGFloat = 212
+        let addPanelWidth: CGFloat = 280
+
         let pad = EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
         let maxPanelHeight = cell * 2 + gap
         let idealContentHeight = Self.addPanelIdealHeight(itemCount: itemCount)
@@ -457,6 +459,68 @@ struct ToolbarContentView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Add \(module.panelTitle)")
                 }
+                ForEach(flow.dashboardGeneratedWidgetsToAdd) { generated in
+                    HStack(spacing: 0) {
+                        Button {
+                            flow.addGeneratedWidgetToDashboard(generated.id)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Color.white, Color.white.opacity(0.28))
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(0.75))
+                                Text(generated.title)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Color.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Add \(generated.title)")
+                        
+                        Button {
+                            flow.deleteGeneratedWidget(generated.id)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(Color.red.opacity(0.85))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete permanently")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                            .fill(Color.black.opacity(0.22))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardItemContent(_ item: DashboardDisplayItem) -> some View {
+        switch item {
+        case .builtIn(let module):
+            dashboardModuleContent(module)
+        case .generated(let widget):
+            sectionBlock(title: widget.title) {
+                GeneratedWidgetSectionView(widget: widget)
             }
         }
     }
@@ -484,6 +548,19 @@ struct ToolbarContentView: View {
             sectionBlock(title: module.panelTitle) {
                 CommandsSectionView()
             }
+        case .aiWidgetBuilder:
+            sectionBlock(title: module.panelTitle) {
+                AIWidgetBuilderSectionView(state: aiWidgetBuilder)
+            }
+        }
+    }
+
+    private func removeDashboardItem(_ item: DashboardDisplayItem) {
+        switch item {
+        case .builtIn(let module):
+            flow.removeDashboardModule(module)
+        case .generated(let widget):
+            flow.removeGeneratedWidgetFromDashboard(widget.id)
         }
     }
 
