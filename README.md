@@ -2,8 +2,9 @@
 
 <!-- https://github.com/user-attachments/assets/11e81094-b4fd-4f29-90e2-c0eb706ddb94 -->
 
-<img width="400" height="227" alt="cursor-toolbar-demo" src="https://github.com/user-attachments/assets/d369c10b-f65b-41a2-895e-bdfa7e3d91e9" />
-
+<div align="center">
+  <img width="800" height="460" alt="cursor-toolbar-demo" src="https://github.com/user-attachments/assets/d369c10b-f65b-41a2-895e-bdfa7e3d91e9" />
+</div>
 
 # cursor-toolbar
 
