@@ -38,52 +38,15 @@ enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-// MARK: - Widget Blueprint (JSON-based runtime rendering)
-
-struct WidgetStyle: Codable, Equatable {
-    var fontSize: CGFloat?
-    var fontWeight: String?      // "regular", "medium", "semibold", "bold", "heavy"
-    var opacity: Double?
-    var alignment: String?       // "leading", "center", "trailing"
-    var spacing: CGFloat?
-    var monospacedDigits: Bool?
-    var color: String?           // "white", "secondary", "accent"
-}
-
-struct WidgetElement: Codable, Equatable, Identifiable {
-    var id: String?
-    var type: String             // "text","liveTime","liveDate","spacer","divider","vstack","hstack","systemInfo","progressRing","image","apiText"
-    var content: String?         // static text, date format, SF Symbol name, system info key
-    var style: WidgetStyle?
-    var children: [WidgetElement]?
-
-    // apiText-specific fields
-    var dataSourceId: String?
-    var keyPath: String?         // dot-path into JSON response
-    var prefix: String?
-    var suffix: String?
-    var fallback: String?
-}
-
-struct WidgetDataSource: Codable, Equatable {
-    let id: String
-    let url: String
-    var method: String?          // "GET" (default)
-    var headers: [String: String]?
-    var refreshIntervalSeconds: Double?
-}
-
-struct WidgetBlueprint: Codable, Equatable {
-    var dataSources: [WidgetDataSource]?
-    var elements: [WidgetElement]
-}
+// MARK: - Generated Widget Definition (HTML-based live rendering)
 
 struct GeneratedWidgetDefinition: Codable, Identifiable, Equatable {
     let id: String
     let title: String
     let requestText: String
     let generatedSummary: String
-    var blueprint: WidgetBlueprint?
+    /// Self-contained HTML/CSS/JS source rendered live via WKWebView.
+    let htmlSource: String
 }
 
 enum DashboardDisplayItem: Identifiable, Equatable {
@@ -117,7 +80,7 @@ final class ToolbarFlowState: ObservableObject {
     @Published var dashboardGeneratedWidgetIDs: [String] = []
 
     private let dashboardKey = "toolbar_dashboard_modules_v1"
-    private let generatedWidgetsKey = "toolbar_generated_widgets_v1"
+    private let generatedWidgetsKey = "toolbar_generated_widgets_v2"
     private let dashboardGeneratedWidgetIDsKey = "toolbar_dashboard_generated_widget_ids_v1"
     /// Snapshot when entering dashboard edit mode; used to discard changes on cancel.
     private var dashboardModulesSnapshot: [DashboardModule]?

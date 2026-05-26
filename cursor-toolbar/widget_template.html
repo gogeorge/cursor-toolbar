@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    color: rgba(255,255,255,0.92);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 0;
+  }
+
+  /* === HEADER === */
+  .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.42);
+    margin-bottom: 6px;
+  }
+
+  /* === HERO VALUE === */
+  .value {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* === CAPTION === */
+  .caption {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.58);
+    margin-top: 6px;
+  }
+
+  /* === DIVIDER === */
+  .divider {
+    width: 40px;
+    height: 1px;
+    background: rgba(255,255,255,0.14);
+    margin: 14px 0;
+  }
+
+  /* === SECONDARY === */
+  .secondary {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.62);
+    line-height: 1.4;
+  }
+
+  /* === INPUT (for widgets that take user text, like a hex color) === */
+  .input {
+    width: 100%;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    padding: 6px 8px;
+    color: rgba(255,255,255,0.92);
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+    margin-bottom: 8px;
+  }
+  .input:focus { border-color: rgba(255,255,255,0.32); }
+
+  /* === INNER CARD === */
+  .card {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 12px;
+    padding: 8px 10px;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade { animation: fadeIn 0.4s ease both; }
+</style>
+</head>
+<body>
+  <div class="fade">
+    <div class="label" id="title-label">WIDGET</div>
+    <div class="value" id="main-value">—</div>
+    <div class="caption" id="caption">Customize me</div>
+    <div class="divider"></div>
+    <div class="label">DETAIL</div>
+    <div class="secondary" id="secondary">—</div>
+  </div>
+<script>
+  // Widget behavior. Replace the body of update() (and add new helpers,
+  // event listeners, fetch calls, intervals, etc.) to fulfill the user's
+  // request. Keep the visual conventions above and the transparent body.
+  function update() {
+    document.getElementById('title-label').textContent = 'WIDGET';
+    document.getElementById('main-value').textContent = '—';
+    document.getElementById('caption').textContent = 'Customize me';
+    document.getElementById('secondary').textContent = '—';
+  }
+  update();
+</script>
+</body>
+</html>

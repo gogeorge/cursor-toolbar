@@ -6,11 +6,21 @@
 import Combine
 import Foundation
 import SwiftUI
+import WebKit
 
 enum LLMProvider: String, CaseIterable, Identifiable {
+    case pollinations = "Free"
     case gemini = "Gemini"
     case groq = "Groq (Llama 3)"
     var id: String { rawValue }
+
+    /// Pollinations is keyless. The other providers require the user to bring their own key.
+    var requiresAPIKey: Bool {
+        switch self {
+        case .pollinations: return false
+        case .gemini, .groq: return true
+        }
+    }
 }
 
 private enum AIWidgetBuilderConstants {
@@ -19,7 +29,8 @@ private enum AIWidgetBuilderConstants {
     static let groqApiKeyDefaultsKey = "groq_api_key"
     static let geminiModel = "gemini-2.0-flash-lite"
     static let groqModel = "llama-3.3-70b-versatile"
-    static let generatedWidgetsKey = "toolbar_generated_widgets_v1"
+    static let pollinationsModel = "openai"
+    static let generatedWidgetsKey = "toolbar_generated_widgets_v2"
 }
 
 private struct GeminiGenerateResponse: Decodable {
@@ -53,111 +64,73 @@ final class AIWidgetBuilderState: ObservableObject {
 
     init() {
         let savedProv = UserDefaults.standard.string(forKey: AIWidgetBuilderConstants.providerDefaultsKey) ?? ""
-        let p = LLMProvider(rawValue: savedProv) ?? .gemini
+        let p = LLMProvider(rawValue: savedProv) ?? .pollinations
         self.provider = p
-        
-        let defaultsKey = p == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        self.apiKey = UserDefaults.standard.string(forKey: defaultsKey) ?? ""
+        self.apiKey = AIWidgetBuilderState.loadStoredKey(for: p)
+    }
+
+    private static func defaultsKey(for provider: LLMProvider) -> String? {
+        switch provider {
+        case .pollinations: return nil
+        case .gemini: return AIWidgetBuilderConstants.geminiApiKeyDefaultsKey
+        case .groq: return AIWidgetBuilderConstants.groqApiKeyDefaultsKey
+        }
+    }
+
+    private static func loadStoredKey(for provider: LLMProvider) -> String {
+        guard let key = defaultsKey(for: provider) else { return "" }
+        return UserDefaults.standard.string(forKey: key) ?? ""
     }
 
     func switchProvider(to newProvider: LLMProvider) {
         provider = newProvider
         UserDefaults.standard.set(newProvider.rawValue, forKey: AIWidgetBuilderConstants.providerDefaultsKey)
-        let defaultsKey = newProvider == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        apiKey = UserDefaults.standard.string(forKey: defaultsKey) ?? ""
-        statusText = "Switched to \(newProvider.rawValue). Describe the widget you want, then generate."
+        apiKey = AIWidgetBuilderState.loadStoredKey(for: newProvider)
+        statusText = newProvider.requiresAPIKey
+            ? "Switched to \(newProvider.rawValue). Paste your API key, describe the widget, then generate."
+            : "Free mode — no API key needed. Describe the widget you want, then generate."
     }
 
     func clearApiKey() {
         apiKey = ""
-        let defaultsKey = provider == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        if let key = AIWidgetBuilderState.defaultsKey(for: provider) {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
         statusText = "API key cleared. Sign in with a different account to generate."
     }
 
-    // Use #filePath at compile time to locate the project source directory.
+    // MARK: - System Prompt (loaded from bundled text file)
+
+    /// Use #filePath at compile time to locate the project source directory.
     private static let projectSourceDir: URL = {
         let thisFile = URL(fileURLWithPath: #filePath)
-        // This file is in cursor-toolbar/cursor-toolbar/AIWidgetBuilderFeature.swift
-        // .deletingLastPathComponent() gives cursor-toolbar/cursor-toolbar/
         return thisFile.deletingLastPathComponent()
     }()
 
+    /// Loads the LLM system prompt from the bundled text file.
+    /// Falls back to a minimal inline prompt if the file is missing.
     private var systemPrompt: String {
-        """
-        You are an AI agent that creates widget definitions for a macOS toolbar app called cursor-toolbar.
-        The app renders widgets from JSON blueprints at runtime.
-
-        You MUST output ONLY valid JSON — no markdown fences, no explanation, no commentary.
-
-        The JSON schema is:
-        {
-          "title": "<PascalCaseWidgetName>",
-          "dataSources": [                         // optional, only for widgets needing REST data
-            {
-              "id": "<unique_source_id>",
-              "url": "<full_endpoint_url>",
-              "method": "GET",
-              "headers": {},
-              "refreshIntervalSeconds": 600
-            }
-          ],
-          "elements": [
-            {
-              "type": "<element_type>",
-              "content": "<string>",               // depends on type
-              "style": {
-                "fontSize": 13,
-                "fontWeight": "regular",           // ultralight/thin/light/regular/medium/semibold/bold/heavy/black
-                "opacity": 1.0,
-                "alignment": "leading",            // leading/center/trailing
-                "spacing": 6,
-                "monospacedDigits": false,
-                "color": "white"                   // white/secondary/accent
-              },
-              "children": [],                      // for vstack/hstack only
-
-              // apiText-specific fields:
-              "dataSourceId": "<source_id>",
-              "keyPath": "path.to.value",
-              "prefix": "",
-              "suffix": "",
-              "fallback": "Loading..."
-            }
-          ]
+        // Try loading from the project source directory (development)
+        let devURL = Self.projectSourceDir.appendingPathComponent("llm_widget_system_prompt.txt")
+        if let contents = try? String(contentsOf: devURL, encoding: .utf8), !contents.isEmpty {
+            return contents
         }
 
-        Supported element types:
-        - "text": Static label. "content" is the text string.
-        - "liveTime": Auto-updating clock. "content" is the date format (e.g. "HH:mm:ss").
-        - "liveDate": Auto-updating date. "content" is the date format (e.g. "EEEE, MMM d, yyyy").
-        - "spacer": Empty flexible space.
-        - "divider": Thin horizontal line.
-        - "vstack": Vertical container. Uses "children" array and "style.spacing".
-        - "hstack": Horizontal container. Uses "children" array and "style.spacing".
-        - "systemInfo": System data. "content" is the key: "hostname", "username", "os", "uptime", or "memory".
-        - "progressRing": Circular ring showing % of day elapsed.
-        - "image": SF Symbol icon. "content" is the SF Symbol name (e.g. "clock.fill").
-        - "apiText": Text from a REST API. Requires "dataSourceId", "keyPath", and optional "prefix"/"suffix"/"fallback".
+        // Try loading from the app bundle (release builds)
+        if let bundleURL = Bundle.main.url(forResource: "llm_widget_system_prompt", withExtension: "txt"),
+           let contents = try? String(contentsOf: bundleURL, encoding: .utf8), !contents.isEmpty {
+            return contents
+        }
 
-        Rules for REST APIs / dataSources:
-        - Only use FREE, public, no-authentication-required APIs.
-        - For weather, use Open-Meteo: https://api.open-meteo.com/v1/forecast?latitude=37.98&longitude=23.73&current_weather=true
-        - For timezone data, use WorldTimeAPI: http://worldtimeapi.org/api/timezone/Europe/Athens
-        - "keyPath" uses dot notation to traverse JSON (e.g. "current_weather.temperature").
-        - Include a reasonable "refreshIntervalSeconds" (e.g. 600 for weather, 60 for time-based APIs).
-        - Always provide a "fallback" text for loading state.
-
-        Design guidelines:
-        - Use white text on dark translucent backgrounds (the app provides the glass background).
-        - Large prominent values (time, temperature) should use fontSize 36-48, fontWeight "bold".
-        - Labels/subtitles should use fontSize 11-13, fontWeight "medium", opacity 0.55-0.72.
-        - Group related elements in vstack/hstack containers.
-        - Use SF Symbols via "image" elements for visual flair.
-
-        Output ONLY the JSON object. No explanation. No markdown. No code fences.
+        // Fallback — should never hit if the file is properly included
+        return """
+        You are an AI agent that creates widgets as self-contained HTML documents.
+        Output ONLY valid HTML with inline CSS and JS. No markdown. No explanation.
+        Use transparent background. White text. Design for 244x244px.
         """
     }
+
+    // MARK: - Widget Generation
 
     func generateWidgetFile() {
         let trimmedGoal = userGoal.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -167,48 +140,61 @@ final class AIWidgetBuilderState: ObservableObject {
             statusText = "Enter a widget request first."
             return
         }
-        guard !trimmedKey.isEmpty else {
+        if provider.requiresAPIKey && trimmedKey.isEmpty {
             statusText = "Add an API key first."
             return
         }
 
-        let defaultsKey = provider == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        UserDefaults.standard.set(trimmedKey, forKey: defaultsKey)
+        if provider.requiresAPIKey, let key = AIWidgetBuilderState.defaultsKey(for: provider) {
+            UserDefaults.standard.set(trimmedKey, forKey: key)
+        }
         isGenerating = true
         progress = 0.06
-        statusText = "Generating widget blueprint…"
+        statusText = "Generating widget…"
         outputFileName = nil
 
         Task {
             startProgressAnimation()
             do {
-                let (title, blueprint) = try await generateBlueprint(goal: trimmedGoal, apiKey: trimmedKey)
+                let rawHTML = try await callLLM(goal: trimmedGoal, apiKey: trimmedKey)
+                let html = extractHTML(from: rawHTML)
+
+                guard !html.isEmpty else {
+                    throw NSError(
+                        domain: "AIWidgetBuilder",
+                        code: -3,
+                        userInfo: [NSLocalizedDescriptionKey: "Model returned empty or invalid HTML."]
+                    )
+                }
 
                 progressTask?.cancel()
                 progress = 1.0
 
+                // Derive a title from the user's prompt
+                let title = deriveTitle(from: trimmedGoal)
                 let widgetId = UUID().uuidString
+
                 let newWidget = GeneratedWidgetDefinition(
                     id: widgetId,
                     title: title,
                     requestText: trimmedGoal,
                     generatedSummary: "Created from prompt: \(trimmedGoal)",
-                    blueprint: blueprint
+                    htmlSource: html
                 )
 
                 // Persist to UserDefaults
                 persistGeneratedWidget(newWidget)
 
-                // Immediate registration
+                // Immediate registration so it appears in the dashboard add list
                 if let flow = flow {
                     flow.registerGeneratedWidget(newWidget)
                 }
 
-                // Save a .swift template file to the project's GeneratedWidgets folder
-                let savedPath = saveSwiftTemplate(title: title, blueprint: blueprint)
+                // Save the HTML file to the project's GeneratedWidgets folder
+                let savedPath = saveHTMLFile(title: title, html: html)
 
-                outputFileName = "\(title).json"
-                statusText = "✓ Widget ready! Added to dashboard list.\(savedPath != nil ? " Swift file saved to GeneratedWidgets/." : "")"
+                outputFileName = "\(title).html"
+                statusText = "✓ Widget ready! Added to dashboard list.\(savedPath != nil ? " File saved to GeneratedWidgets/." : "")"
 
             } catch {
                 progressTask?.cancel()
@@ -219,48 +205,109 @@ final class AIWidgetBuilderState: ObservableObject {
         }
     }
 
-    private func startProgressAnimation() {
-        progressTask?.cancel()
-        progressTask = Task { @MainActor in
-            while !Task.isCancelled && isGenerating {
-                try? await Task.sleep(nanoseconds: 180_000_000)
-                if progress < 0.9 {
-                    progress += 0.03
-                }
-            }
+    // MARK: - LLM API Calls
+
+    private func callLLM(goal: String, apiKey: String) async throws -> String {
+        switch provider {
+        case .pollinations:
+            return try await callPollinations(goal: goal)
+        case .gemini:
+            return try await callGemini(goal: goal, apiKey: apiKey)
+        case .groq:
+            return try await callGroq(goal: goal, apiKey: apiKey)
         }
     }
 
-    private func generateBlueprint(goal: String, apiKey: String) async throws -> (String, WidgetBlueprint) {
-        let rawText: String
-        switch provider {
-        case .gemini:
-            rawText = try await generateWithGemini(goal: goal, apiKey: apiKey)
-        case .groq:
-            rawText = try await generateWithGroq(goal: goal, apiKey: apiKey)
+    private func callPollinations(goal: String) async throws -> String {
+        let endpoint = "https://text.pollinations.ai/openai"
+        guard let url = URL(string: endpoint) else {
+            throw URLError(.badURL)
         }
 
-        // Extract the JSON from the response (strip markdown fences if present)
-        let jsonString = extractJSON(from: rawText)
-        guard let jsonData = jsonString.data(using: .utf8) else {
+        // The anonymous Pollinations tier serves a reasoning model (gpt-oss-20b)
+        // with a hard ~1500 completion-token cap. We minimise wasted budget by
+        // (a) shipping a compact system prompt, (b) requesting low reasoning
+        // effort, and (c) telling the model to write minified output. We
+        // deliberately do NOT send max_tokens — leaving it unset is what lets
+        // the model actually finish the HTML document.
+        let userMessage = """
+        Mutate the TEMPLATE at the bottom of your instructions into a complete HTML widget that fulfills this request: \(goal)
+
+        IMPORTANT: be COMPACT. Minify CSS and JS, no comments, no whitespace between rules, short variable names, no duplication. Your entire HTML must fit in under 1400 tokens and MUST end with </html>.
+        """
+
+        let requestBody: [String: Any] = [
+            "model": AIWidgetBuilderConstants.pollinationsModel,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userMessage]
+            ],
+            "temperature": 0.4,
+            "reasoning_effort": "low",
+        ]
+
+        let bodyData = try JSONSerialization.data(withJSONObject: requestBody)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+        request.timeoutInterval = 120
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? "Unknown Pollinations error."
             throw NSError(
                 domain: "AIWidgetBuilder",
-                code: -3,
-                userInfo: [NSLocalizedDescriptionKey: "Could not encode response as UTF-8."]
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: body]
             )
         }
 
-        // Parse the full response to get title + blueprint
-        let fullResponse = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
-        let title = (fullResponse?["title"] as? String) ?? "GeneratedWidget"
+        // Pollinations' /openai endpoint mirrors the OpenAI chat-completion shape.
+        struct OpenAIResponse: Decodable {
+            struct Choice: Decodable {
+                struct Message: Decodable { let content: String? }
+                let message: Message?
+                let finish_reason: String?
+            }
+            let choices: [Choice]?
+        }
 
-        // Decode blueprint (elements + dataSources)
-        let blueprint = try JSONDecoder().decode(WidgetBlueprint.self, from: jsonData)
+        if let decoded = try? JSONDecoder().decode(OpenAIResponse.self, from: data),
+           let choice = decoded.choices?.first,
+           let text = choice.message?.content?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !text.isEmpty {
+            // If the model hit the completion-token cap before finishing the
+            // HTML document, the rendered widget would be empty. Surface that
+            // clearly instead of saving a broken HTML file.
+            if choice.finish_reason == "length" && !text.lowercased().contains("</html>") {
+                throw NSError(
+                    domain: "AIWidgetBuilder",
+                    code: -4,
+                    userInfo: [NSLocalizedDescriptionKey: "Response was cut off before the widget finished. Try a simpler request."]
+                )
+            }
+            return text
+        }
 
-        return (title, blueprint)
+        // Fallback: some Pollinations deployments return raw text instead of JSON.
+        if let raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty {
+            return raw
+        }
+
+        throw NSError(
+            domain: "AIWidgetBuilder",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Pollinations returned empty output."]
+        )
     }
 
-    private func generateWithGemini(goal: String, apiKey: String) async throws -> String {
+    private func callGemini(goal: String, apiKey: String) async throws -> String {
         let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(AIWidgetBuilderConstants.geminiModel):generateContent?key=\(apiKey)"
         guard let url = URL(string: endpoint) else {
             throw URLError(.badURL)
@@ -277,8 +324,8 @@ final class AIWidgetBuilderState: ObservableObject {
                 ]],
             ]],
             "generationConfig": [
-                "temperature": 0.3,
-                "maxOutputTokens": 4096,
+                "temperature": 0.4,
+                "maxOutputTokens": 8192,
             ],
         ]
 
@@ -321,7 +368,7 @@ final class AIWidgetBuilderState: ObservableObject {
         return rawText
     }
 
-    private func generateWithGroq(goal: String, apiKey: String) async throws -> String {
+    private func callGroq(goal: String, apiKey: String) async throws -> String {
         let endpoint = "https://api.groq.com/openai/v1/chat/completions"
         guard let url = URL(string: endpoint) else {
             throw URLError(.badURL)
@@ -333,9 +380,8 @@ final class AIWidgetBuilderState: ObservableObject {
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": "Create a widget for this request: \(goal)"]
             ],
-            "temperature": 0.3,
-            "max_tokens": 4096,
-            "response_format": ["type": "json_object"]
+            "temperature": 0.4,
+            "max_tokens": 8192,
         ]
 
         let bodyData = try JSONSerialization.data(withJSONObject: requestBody)
@@ -359,7 +405,6 @@ final class AIWidgetBuilderState: ObservableObject {
             )
         }
 
-        // Parse standard OpenAI chat completions schema
         struct GroqResponse: Decodable {
             struct Choice: Decodable {
                 struct Message: Decodable {
@@ -377,22 +422,24 @@ final class AIWidgetBuilderState: ObservableObject {
             throw NSError(
                 domain: "AIWidgetBuilder",
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Groq Model returned empty output."]
+                userInfo: [NSLocalizedDescriptionKey: "Groq model returned empty output."]
             )
         }
         return rawText
     }
 
-    /// Extract JSON from AI response text, stripping markdown fences and preamble if present.
-    private func extractJSON(from text: String) -> String {
+    // MARK: - HTML Extraction
+
+    /// Extract HTML from AI response, stripping markdown fences and preamble if present.
+    private func extractHTML(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // If it starts with '{', assume it's already clean JSON
-        if trimmed.hasPrefix("{") {
+        // If it starts with a valid HTML opening, use as-is
+        if trimmed.hasPrefix("<!") || trimmed.hasPrefix("<html") {
             return trimmed
         }
 
-        // Try to extract from markdown code fences
+        // Try to extract from markdown code fences (```html ... ``` or ``` ... ```)
         if trimmed.contains("```") {
             let lines = trimmed.components(separatedBy: .newlines)
             var insideFence = false
@@ -413,23 +460,65 @@ final class AIWidgetBuilderState: ObservableObject {
             }
 
             let fenced = captured.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !fenced.isEmpty && fenced.hasPrefix("{") {
+            if !fenced.isEmpty && (fenced.hasPrefix("<!") || fenced.hasPrefix("<html") || fenced.hasPrefix("<")) {
                 return fenced
             }
         }
 
-        // Last resort: find the first '{' and last '}' and extract
-        if let startIdx = trimmed.firstIndex(of: "{"),
-           let endIdx = trimmed.lastIndex(of: "}") {
-            return String(trimmed[startIdx...endIdx])
+        // Last resort: find the first '<' that starts an HTML tag and last '>'
+        if let startIdx = trimmed.range(of: "<!DOCTYPE", options: .caseInsensitive)?.lowerBound
+            ?? trimmed.range(of: "<html", options: .caseInsensitive)?.lowerBound {
+            let endSearch = trimmed[startIdx...]
+            if let endIdx = endSearch.range(of: "</html>", options: [.caseInsensitive, .backwards])?.upperBound {
+                return String(trimmed[startIdx..<endIdx])
+            }
+            return String(trimmed[startIdx...])
         }
 
-        return trimmed
+        // If all else fails, wrap raw content in minimal HTML
+        if trimmed.contains("<") {
+            return trimmed
+        }
+
+        return ""
     }
 
-    /// Save a .swift template file to the project's GeneratedWidgets folder.
+    // MARK: - Title Derivation
+
+    /// Derives a PascalCase widget title from the user's prompt.
+    private func deriveTitle(from goal: String) -> String {
+        let words = goal
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .prefix(4)
+            .map { word in
+                let cleaned = word.filter { $0.isLetter || $0.isNumber }
+                return cleaned.prefix(1).uppercased() + cleaned.dropFirst().lowercased()
+            }
+
+        let title = words.joined()
+        return title.isEmpty ? "CustomWidget" : title
+    }
+
+    // MARK: - Progress Animation
+
+    private func startProgressAnimation() {
+        progressTask?.cancel()
+        progressTask = Task { @MainActor in
+            while !Task.isCancelled && isGenerating {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+                if progress < 0.9 {
+                    progress += 0.03
+                }
+            }
+        }
+    }
+
+    // MARK: - File Saving
+
+    /// Save the generated HTML to the project's GeneratedWidgets folder.
     @discardableResult
-    private func saveSwiftTemplate(title: String, blueprint: WidgetBlueprint) -> String? {
+    private func saveHTMLFile(title: String, html: String) -> String? {
         let folderURL = Self.projectSourceDir.appendingPathComponent("GeneratedWidgets", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
@@ -438,114 +527,18 @@ final class AIWidgetBuilderState: ObservableObject {
         }
 
         let safeName = title.replacingOccurrences(of: " ", with: "")
-        let fileName = "\(safeName)Feature.swift"
+        let fileName = "\(safeName).html"
         let fileURL = folderURL.appendingPathComponent(fileName)
 
-        // Generate a Swift template based on the blueprint
-        let code = generateSwiftTemplate(title: safeName, blueprint: blueprint)
         do {
-            try code.write(to: fileURL, atomically: true, encoding: .utf8)
+            try html.write(to: fileURL, atomically: true, encoding: .utf8)
             return fileURL.path
         } catch {
             return nil
         }
     }
 
-    /// Generates a Swift source template from a WidgetBlueprint for manual Xcode integration.
-    private func generateSwiftTemplate(title: String, blueprint: WidgetBlueprint) -> String {
-        var lines: [String] = []
-        lines.append("//")
-        lines.append("//  \(title)Feature.swift")
-        lines.append("//  cursor-toolbar")
-        lines.append("//")
-        lines.append("//  Auto-generated by AI Widget Builder.")
-        lines.append("//  This is a template — add this file to your Xcode project to compile.")
-        lines.append("//")
-        lines.append("")
-        lines.append("import SwiftUI")
-        lines.append("")
-        lines.append("struct \(title)SectionView: View {")
-        lines.append("    var body: some View {")
-        lines.append("        VStack(alignment: .leading, spacing: 8) {")
-
-        for element in blueprint.elements {
-            lines.append(contentsOf: swiftLines(for: element, indent: 12))
-        }
-
-        lines.append("        }")
-        lines.append("    }")
-        lines.append("}")
-        lines.append("")
-
-        return lines.joined(separator: "\n")
-    }
-
-    private func swiftLines(for element: WidgetElement, indent: Int) -> [String] {
-        let pad = String(repeating: " ", count: indent)
-        let size = element.style?.fontSize ?? 13
-        let weight = element.style?.fontWeight ?? "regular"
-        let opacity = element.style?.opacity ?? 0.9
-
-        switch element.type {
-        case "text":
-            return [
-                "\(pad)Text(\"\(element.content ?? "")\")",
-                "\(pad)    .font(.system(size: \(size), weight: .\(weight)))",
-                "\(pad)    .foregroundStyle(Color.white.opacity(\(opacity)))",
-            ]
-        case "liveTime":
-            return [
-                "\(pad)// Live time: format \"\(element.content ?? "HH:mm:ss")\"",
-                "\(pad)TimelineView(.periodic(from: .now, by: 1.0)) { context in",
-                "\(pad)    Text(DateFormatter.localizedString(from: context.date, dateStyle: .none, timeStyle: .medium))",
-                "\(pad)        .font(.system(size: \(size), weight: .\(weight)))",
-                "\(pad)        .foregroundStyle(Color.white)",
-                "\(pad)}",
-            ]
-        case "liveDate":
-            return [
-                "\(pad)// Live date: format \"\(element.content ?? "EEEE, MMM d")\"",
-                "\(pad)Text(Date(), style: .date)",
-                "\(pad)    .font(.system(size: \(size), weight: .\(weight)))",
-                "\(pad)    .foregroundStyle(Color.white.opacity(\(opacity)))",
-            ]
-        case "image":
-            return [
-                "\(pad)Image(systemName: \"\(element.content ?? "questionmark")\")",
-                "\(pad)    .font(.system(size: \(size), weight: .\(weight)))",
-                "\(pad)    .foregroundStyle(Color.white.opacity(\(opacity)))",
-            ]
-        case "spacer":
-            return ["\(pad)Spacer()"]
-        case "divider":
-            return [
-                "\(pad)Divider().overlay(Color.white.opacity(0.14))",
-            ]
-        case "vstack":
-            var result = ["\(pad)VStack(alignment: .leading, spacing: \(element.style?.spacing ?? 6)) {"]
-            for child in element.children ?? [] {
-                result.append(contentsOf: swiftLines(for: child, indent: indent + 4))
-            }
-            result.append("\(pad)}")
-            return result
-        case "hstack":
-            var result = ["\(pad)HStack(spacing: \(element.style?.spacing ?? 6)) {"]
-            for child in element.children ?? [] {
-                result.append(contentsOf: swiftLines(for: child, indent: indent + 4))
-            }
-            result.append("\(pad)}")
-            return result
-        case "apiText":
-            return [
-                "\(pad)// API data from \(element.dataSourceId ?? "unknown") at keyPath \(element.keyPath ?? "")",
-                "\(pad)Text(\"\(element.fallback ?? "Loading...")\")",
-                "\(pad)    .font(.system(size: \(size), weight: .\(weight)))",
-                "\(pad)    .foregroundStyle(Color.white.opacity(\(opacity)))",
-            ]
-        default:
-            return ["\(pad)// Unsupported element type: \(element.type)"]
-        }
-    }
+    // MARK: - Persistence
 
     private func persistGeneratedWidget(_ widget: GeneratedWidgetDefinition) {
         let key = AIWidgetBuilderConstants.generatedWidgetsKey
@@ -588,66 +581,88 @@ struct AIWidgetBuilderSectionView: View {
             .pickerStyle(.segmented)
             .padding(.bottom, 4)
 
-            if state.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button {
-                    let urlString = state.provider == .gemini 
-                        ? "https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Faistudio.google.com%2Fapp%2Fapikey" 
-                        : "https://console.groq.com/keys"
-                    if let url = URL(string: urlString) {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "person.crop.circle.badge.plus")
-                        Text(state.provider == .gemini ? "Sign up / get Gemini key" : "Sign up / get Groq key")
-                        Spacer()
-                        Image(systemName: "arrow.up.forward.square")
-                    }
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 9)
-                    .background(
-                        RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
-                            .fill(Color.white.opacity(0.16))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-
-            HStack(spacing: 8) {
-                let name = state.provider == .gemini ? "Gemini" : "Groq"
-                SecureField(state.apiKey.isEmpty ? "Paste \(name) API key" : "\(name) API key saved", text: $state.apiKey)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Color.white)
-
-                if !state.apiKey.isEmpty {
+            if state.provider.requiresAPIKey {
+                if state.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button {
-                        state.clearApiKey()
+                        let urlString = state.provider == .gemini
+                            ? "https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Faistudio.google.com%2Fapp%2Fapikey"
+                            : "https://console.groq.com/keys"
+                        if let url = URL(string: urlString) {
+                            NSWorkspace.shared.open(url)
+                        }
                     } label: {
-                        Image(systemName: "arrow.right.square")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.6))
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                            Text(state.provider == .gemini ? "Sign up / get Gemini key" : "Sign up / get Groq key")
+                            Spacer()
+                            Image(systemName: "arrow.up.forward.square")
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                                .fill(Color.white.opacity(0.16))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                        )
                     }
                     .buttonStyle(.plain)
-                    .help("Sign out / clear API key")
                 }
+
+                HStack(spacing: 8) {
+                    let name = state.provider == .gemini ? "Gemini" : "Groq"
+                    SecureField(state.apiKey.isEmpty ? "Paste \(name) API key" : "\(name) API key saved", text: $state.apiKey)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(Color.white)
+
+                    if !state.apiKey.isEmpty {
+                        Button {
+                            state.clearApiKey()
+                        } label: {
+                            Image(systemName: "arrow.right.square")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Sign out / clear API key")
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                        .fill(Color.black.opacity(0.22))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                )
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                    Text("Free — no API key required")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                        .fill(Color.black.opacity(0.22))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                )
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.22))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-            )
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $state.userGoal)
@@ -657,7 +672,7 @@ struct AIWidgetBuilderSectionView: View {
                     .frame(minHeight: 120, idealHeight: 140, maxHeight: 160)
 
                 if state.userGoal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Example: Show current time, weather in Athens, or system info")
+                    Text("Example: Show current time, weather in Athens, or crypto prices")
                         .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Color.white.opacity(0.42))
                         .padding(.top, 6)
@@ -720,36 +735,7 @@ struct GeneratedWidgetSectionView: View {
     let widget: GeneratedWidgetDefinition
 
     var body: some View {
-        if let blueprint = widget.blueprint {
-            DynamicWidgetRenderer(blueprint: blueprint)
-        } else {
-            // Fallback for legacy widgets without a blueprint
-            VStack(alignment: .leading, spacing: 10) {
-                Text(widget.generatedSummary)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Color.white.opacity(0.78))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
-                            .fill(Color.black.opacity(0.22))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ToolbarGlass.innerRadius, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-                    )
-
-                Text("Request")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.55))
-
-                Text(widget.requestText)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Color.white.opacity(0.72))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        WebWidgetView(htmlSource: widget.htmlSource)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
