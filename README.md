@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/11e81094-b4fd-4f29-90e2-c0eb706ddb94
+
 # cursor-toolbar
 
 A floating, cursor-anchored macOS toolbar built in SwiftUI. Press a global hotkey anywhere on the system and a glass panel pops up under the pointer with shortcuts to your most-used utilities — folders, notes, clipboard history, AI prompt drafting, and a customizable dashboard of widgets (including LLM-generated ones).
