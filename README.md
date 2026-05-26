@@ -3,8 +3,9 @@
 <!-- https://github.com/user-attachments/assets/11e81094-b4fd-4f29-90e2-c0eb706ddb94 -->
 
 <div align="center">
-  <img width="800" height="460" alt="cursor-toolbar-demo" src="https://github.com/user-attachments/assets/d369c10b-f65b-41a2-895e-bdfa7e3d91e9" />
+    <img width="800" height="460" alt="cursor-toolbar_demo" src="https://github.com/user-attachments/assets/07f967c2-86ee-42fe-ad6a-617598475a45" />
 </div>
+
 
 # cursor-toolbar
 
