@@ -1,4 +1,4 @@
-# cursor-toolbar
+# Janus
 
 A floating, cursor-anchored macOS toolbar built in SwiftUI. Press a global hotkey anywhere on the system and a glass panel pops up under the pointer with shortcuts to your most-used utilities — folders, notes, clipboard history, AI prompt drafting, and a customizable dashboard of widgets (including LLM-generated ones).
 
@@ -6,7 +6,8 @@ A floating, cursor-anchored macOS toolbar built in SwiftUI. Press a global hotke
 
 - **Global hotkey:** `⌘ ⇧ Space` shows the panel centered on the current cursor position.
 - Clicking outside the panel dismisses it.
-- The app runs without a Dock icon; configure via the `Settings` scene.
+- The app runs as a menu bar accessory (no Dock icon). The 🎭 menu bar item shows the
+  toolbar, grants Accessibility access, opens Settings, and quits.
 
 ## The icon rail
 
@@ -53,7 +54,7 @@ Describe a widget in natural language and the app asks an LLM to return a JSON b
 
 ## Built-in features
 
-- **Clipboard manager** — polls `NSPasteboard` every 0.5s and keeps the last 5 unique text entries.
+- **Clipboard manager** — polls `NSPasteboard` every 0.5s and keeps the last 5 unique text entries. Copies marked concealed or transient (password managers) are ignored.
 - **Notes** — single persistent note stored locally.
 - **Previous app tracker** — remembers the app that was frontmost so the toolbar can hand focus back.
 - **Folders** — opens the standard Finder folders.
@@ -62,16 +63,21 @@ Describe a widget in natural language and the app asks an LLM to return a JSON b
 
 ## Requirements
 
-- macOS (SwiftUI + AppKit, uses Carbon `RegisterEventHotKey` for the global hotkey).
-- Xcode — open `cursor-toolbar.xcodeproj` and run the `cursor-toolbar` scheme.
+- macOS 14.0 or later (SwiftUI + AppKit, uses Carbon `RegisterEventHotKey` for the global hotkey).
+- Xcode — open `cursor-toolbar.xcodeproj` and run the `cursor-toolbar` scheme. The built
+  product is `Janus.app` (bundle id `com.crasi.janus`).
+- Accessibility access is optional; it is only used to un-minimize the previous app's windows.
 - For the AI widget builder: a Gemini or Groq API key, entered into the AI widget builder panel.
 
 ## Persistence
 
-All user state lives in `UserDefaults`:
+API keys are stored in the **keychain** (service `com.crasi.janus`). Keys written to
+`UserDefaults` by older builds are migrated on first launch and the plaintext copy is erased.
+
+Remaining user state lives in `UserDefaults`:
 
 - `clipboard_history` — recent clipboard entries
 - `toolbar_dashboard_modules_v1` — dashboard module order
 - `toolbar_generated_widgets_v1` — saved AI-generated widgets
 - `toolbar_dashboard_generated_widget_ids_v1` — which generated widgets are pinned to the dashboard
-- `ai_widget_builder_provider`, `gemini_api_key`, `groq_api_key` — AI builder settings
+- `ai_widget_builder_provider` — selected AI builder provider (keys live in the keychain)

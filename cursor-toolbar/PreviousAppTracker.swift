@@ -26,8 +26,11 @@ final class PreviousAppTracker: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self else { return }
-            self.handleActivation(notification)
+            // The observer closure is nonisolated even with `queue: .main`, so hop
+            // explicitly rather than rely on the queue happening to be the main one.
+            MainActor.assumeIsolated {
+                self?.handleActivation(notification)
+            }
         }
         seedFromFrontmostIfEligible()
     }
@@ -140,10 +143,29 @@ final class PreviousAppTracker: ObservableObject {
         if let url = app.bundleURL {
             NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: nil)
         } else {
-            app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+            app.activate(options: [.activateAllWindows])
         }
 
         Self.deminimizeWindowsIfPossible(pid: app.processIdentifier)
+    }
+
+    /// Whether the user has granted Accessibility access, which is what lets us
+    /// un-minimize the target app's windows. Everything else works without it.
+    var hasAccessibilityAccess: Bool { AXIsProcessTrusted() }
+
+    /// Shows the system Accessibility prompt (once per launch, per macOS policy).
+    /// Without this the feature just silently under-delivers and the user has no
+    /// idea a permission is involved.
+    func requestAccessibilityAccess() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+    }
+
+    /// Opens the Accessibility pane directly, for when the prompt has already been
+    /// dismissed and macOS will not show it again.
+    func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private static func deminimizeWindowsIfPossible(pid: pid_t) {

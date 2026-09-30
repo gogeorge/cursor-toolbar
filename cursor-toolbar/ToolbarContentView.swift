@@ -33,6 +33,9 @@ struct ToolbarContentView: View {
     @ObservedObject var aiPrompt: AIPromptState
     @ObservedObject var aiWidgetBuilder: AIWidgetBuilderState
     @ObservedObject var flow: ToolbarFlowState
+    @ObservedObject var terminal: TerminalEngine
+    @ObservedObject var devCommands: DevCommandsState
+    @ObservedObject var ollama: OllamaState
     var onDismiss: () -> Void
     var onLayoutChange: () -> Void
 
@@ -41,7 +44,7 @@ struct ToolbarContentView: View {
     private let iconStackSpacing: CGFloat = 8
     /// Same gap as between the icon rail and the glass panel (`HStack` below).
     private let iconToPanelSpacing: CGFloat = 14
-    private static let slotCount = 6
+    private static let slotCount = 7
     /// Square dashboard tiles (width and height match).
     private static let dashboardCellSize: CGFloat = 272
 
@@ -63,7 +66,9 @@ struct ToolbarContentView: View {
             iconOrbit
             if flow.isGlassActive && flow.isPanelVisible {
                 Group {
-                    if flow.sheetMode == .full {
+                    if flow.appMode == .dev && flow.sheetMode == .full {
+                        devDashboard
+                    } else if flow.sheetMode == .full {
                         HStack(alignment: .top, spacing: iconToPanelSpacing) {
                             fullDashboardGrid
                             if flow.isEditingDashboard, !(flow.dashboardModulesToAdd.isEmpty && flow.dashboardGeneratedWidgetsToAdd.isEmpty) {
@@ -223,6 +228,16 @@ struct ToolbarContentView: View {
                 Image(systemName: full ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                     .font(.system(size: 12, weight: .semibold))
             }
+        case 6:
+            let dev = flow.appMode == .dev
+            circularIconButton(
+                isActive: dev,
+                accessibilityLabel: dev ? "Switch to standard mode" : "Switch to developer / terminal mode",
+                action: { flow.toggleAppMode() }
+            ) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 15, weight: .semibold))
+            }
         default:
             EmptyView()
         }
@@ -310,15 +325,11 @@ struct ToolbarContentView: View {
             }
             circularIconButton(
                 isActive: false,
-                accessibilityLabel: "Cursor toolbar",
+                accessibilityLabel: "Janus",
                 action: {}
             ) {
-                Image("CursorLogoWhite")
-                    .renderingMode(.template)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: 22, height: 22)
+                Image(systemName: "theatermasks.fill")
+                    .font(.system(size: 17, weight: .medium))
             }
         }
     }
@@ -576,6 +587,103 @@ struct ToolbarContentView: View {
         .scrollIndicators(.hidden)
         .allowsHitTesting(!contentLocked)
         .frame(width: size, height: size)
+        .background {
+            ZStack {
+                GlassPanelBackground(cornerRadius: r)
+                shape.fill(ToolbarGlass.tint)
+            }
+        }
+        .clipShape(shape)
+        .overlay(
+            shape.strokeBorder(Color.white.opacity(ToolbarGlass.borderOpacity), lineWidth: 1)
+        )
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.06), radius: 5, x: 0, y: 2)
+    }
+
+    // MARK: - Dev / terminal dashboard
+
+    private var devDashboard: some View {
+        let gap = iconToPanelSpacing
+        let cellHeight: CGFloat = 440
+        return HStack(alignment: .top, spacing: gap) {
+            devCell(width: 360, height: cellHeight, title: "Terminal", icon: "terminal", scrollable: false) {
+                TerminalSectionView(engine: terminal)
+            }
+            devCell(width: 320, height: cellHeight, title: "Commands", icon: "square.grid.2x2", scrollable: true) {
+                DevCommandsSectionView(engine: terminal, state: devCommands)
+            }
+            devCell(width: 340, height: cellHeight, title: "Ollama · offline", icon: "brain.head.profile", scrollable: false) {
+                OllamaSectionView(state: ollama)
+            }
+            devTrailingColumn
+                .frame(width: iconColumnWidth)
+        }
+    }
+
+    private var devTrailingColumn: some View {
+        VStack(spacing: iconStackSpacing) {
+            circularIconButton(
+                isActive: false,
+                accessibilityLabel: "Settings",
+                action: { openToolbarSettings() }
+            ) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .medium))
+            }
+            circularIconButton(
+                isActive: false,
+                accessibilityLabel: "Back to standard mode",
+                action: { flow.toggleAppMode() }
+            ) {
+                Image(systemName: "rectangle.grid.2x2")
+                    .font(.system(size: 16, weight: .medium))
+            }
+            circularIconButton(
+                isActive: false,
+                accessibilityLabel: "Janus",
+                action: {}
+            ) {
+                Image(systemName: "theatermasks.fill")
+                    .font(.system(size: 17, weight: .medium))
+            }
+        }
+    }
+
+    private func devCell<Content: View>(
+        width: CGFloat,
+        height: CGFloat,
+        title: String,
+        icon: String,
+        scrollable: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let r = ToolbarGlass.dashboardCellRadius
+        let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(Color.white)
+
+            if scrollable {
+                ScrollView {
+                    content()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: .infinity)
+            } else {
+                content()
+                    .frame(maxHeight: .infinity, alignment: .top)
+            }
+        }
+        .padding(14)
+        .frame(width: width, height: height, alignment: .topLeading)
         .background {
             ZStack {
                 GlassPanelBackground(cornerRadius: r)

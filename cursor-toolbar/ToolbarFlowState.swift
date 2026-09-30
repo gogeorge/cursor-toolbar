@@ -15,6 +15,13 @@ enum ToolbarSheetMode: Equatable {
     case full
 }
 
+/// Top-level mode. Standard is the everyday dashboard; dev unlocks the
+/// terminal console, command palette, and offline Ollama chat.
+enum AppMode: String, Codable {
+    case standard
+    case dev
+}
+
 /// Tiles that can appear on the full dashboard (order is preserved).
 enum DashboardModule: String, CaseIterable, Codable, Identifiable {
     case folders
@@ -108,6 +115,10 @@ enum DashboardDisplayItem: Identifiable, Equatable {
 final class ToolbarFlowState: ObservableObject {
     @Published var sheetMode: ToolbarSheetMode = .collapsed
     @Published var isPanelVisible: Bool = false
+    /// Persisted across launches so the toolbar reopens in the last-used mode.
+    @Published var appMode: AppMode = .standard {
+        didSet { UserDefaults.standard.set(appMode.rawValue, forKey: appModeKey) }
+    }
     /// Home-screen style: tiles wiggle and show remove badges.
     @Published var isEditingDashboard: Bool = false
     /// Shown modules in left-to-right, top-to-bottom order. Commands is omitted by default.
@@ -116,6 +127,7 @@ final class ToolbarFlowState: ObservableObject {
     @Published var generatedWidgets: [GeneratedWidgetDefinition] = []
     @Published var dashboardGeneratedWidgetIDs: [String] = []
 
+    private let appModeKey = "toolbar_app_mode_v1"
     private let dashboardKey = "toolbar_dashboard_modules_v1"
     private let generatedWidgetsKey = "toolbar_generated_widgets_v1"
     private let dashboardGeneratedWidgetIDsKey = "toolbar_dashboard_generated_widget_ids_v1"
@@ -126,9 +138,26 @@ final class ToolbarFlowState: ObservableObject {
     var isGlassActive: Bool { sheetMode != .collapsed }
 
     init() {
+        if let raw = UserDefaults.standard.string(forKey: appModeKey),
+           let mode = AppMode(rawValue: raw) {
+            appMode = mode
+        }
         loadDashboardModules()
         loadGeneratedWidgets()
         loadDashboardGeneratedWidgetIDs()
+    }
+
+    /// Flips between standard and dev modes. Entering dev jumps straight to the
+    /// expanded dev dashboard; leaving it drops back to the collapsed orbit.
+    func toggleAppMode() {
+        if appMode == .dev {
+            appMode = .standard
+            sheetMode = .collapsed
+        } else {
+            appMode = .dev
+            cancelDashboardEdit()
+            sheetMode = .full
+        }
     }
 
     func reset() {

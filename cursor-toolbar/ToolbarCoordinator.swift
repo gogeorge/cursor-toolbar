@@ -31,6 +31,9 @@ class ToolbarCoordinator: NSObject {
     let aiPrompt = AIPromptState()
     let aiWidgetBuilder = AIWidgetBuilderState()
     let flow = ToolbarFlowState()
+    let terminal = TerminalEngine()
+    let devCommands = DevCommandsState()
+    let ollama = OllamaState()
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     /// Ignores stray global mouse-downs right after opening (resize/cursor timing).
@@ -49,6 +52,9 @@ class ToolbarCoordinator: NSObject {
                 aiPrompt: aiPrompt,
                 aiWidgetBuilder: aiWidgetBuilder,
                 flow: flow,
+                terminal: terminal,
+                devCommands: devCommands,
+                ollama: ollama,
                 onDismiss: { [weak self] in
                     self?.hideMenu()
                 },
@@ -91,6 +97,11 @@ class ToolbarCoordinator: NSObject {
 
         let mouseLoc = NSEvent.mouseLocation
         suppressDismissUntil = Date().addingTimeInterval(0.22)
+
+        // The panel is `.nonactivatingPanel`, so ordering it in does not make us the
+        // active app — and an accessory app that isn't active receives no key events,
+        // which would leave the notes/prompt editors unable to accept typing.
+        NSApp.activate()
 
         // First fit + center on cursor. A later async resize must re-anchor the same way;
         // otherwise only the size changes and the origin stays fixed, shifting the panel off the pointer.

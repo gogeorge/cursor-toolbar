@@ -15,8 +15,12 @@ enum LLMProvider: String, CaseIterable, Identifiable {
 
 private enum AIWidgetBuilderConstants {
     static let providerDefaultsKey = "ai_widget_builder_provider"
+    /// Legacy plaintext locations, still read once so existing installs keep their key.
     static let geminiApiKeyDefaultsKey = "gemini_api_key"
     static let groqApiKeyDefaultsKey = "groq_api_key"
+    /// Keychain accounts these keys now live in.
+    static let geminiApiKeyAccount = "gemini_api_key"
+    static let groqApiKeyAccount = "groq_api_key"
     static let geminiModel = "gemini-2.0-flash-lite"
     static let groqModel = "llama-3.3-70b-versatile"
     static let generatedWidgetsKey = "toolbar_generated_widgets_v1"
@@ -56,31 +60,51 @@ final class AIWidgetBuilderState: ObservableObject {
         let p = LLMProvider(rawValue: savedProv) ?? .gemini
         self.provider = p
         
-        let defaultsKey = p == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        self.apiKey = UserDefaults.standard.string(forKey: defaultsKey) ?? ""
+        self.apiKey = Self.loadKey(for: p)
     }
 
     func switchProvider(to newProvider: LLMProvider) {
         provider = newProvider
         UserDefaults.standard.set(newProvider.rawValue, forKey: AIWidgetBuilderConstants.providerDefaultsKey)
-        let defaultsKey = newProvider == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        apiKey = UserDefaults.standard.string(forKey: defaultsKey) ?? ""
+        apiKey = Self.loadKey(for: newProvider)
         statusText = "Switched to \(newProvider.rawValue). Describe the widget you want, then generate."
     }
 
     func clearApiKey() {
         apiKey = ""
-        let defaultsKey = provider == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        KeychainStore.delete(account: Self.keychainAccount(for: provider))
         statusText = "API key cleared. Sign in with a different account to generate."
     }
 
-    // Use #filePath at compile time to locate the project source directory.
-    private static let projectSourceDir: URL = {
-        let thisFile = URL(fileURLWithPath: #filePath)
-        // This file is in cursor-toolbar/cursor-toolbar/AIWidgetBuilderFeature.swift
-        // .deletingLastPathComponent() gives cursor-toolbar/cursor-toolbar/
-        return thisFile.deletingLastPathComponent()
+    private static func keychainAccount(for provider: LLMProvider) -> String {
+        provider == .gemini
+            ? AIWidgetBuilderConstants.geminiApiKeyAccount
+            : AIWidgetBuilderConstants.groqApiKeyAccount
+    }
+
+    /// Keychain first, falling back once to the plaintext key an older build left
+    /// in UserDefaults (which is then migrated and erased).
+    private static func loadKey(for provider: LLMProvider) -> String {
+        KeychainStore.migratingFromDefaults(
+            account: keychainAccount(for: provider),
+            defaultsKey: provider == .gemini
+                ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey
+                : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
+        )
+    }
+
+    /// Where generated Swift templates are written.
+    ///
+    /// This used to be derived from `#filePath`, which bakes the build machine's
+    /// source path into the binary: on any other Mac the directory does not exist
+    /// and every write silently failed, while on the build machine it scribbled
+    /// into the checkout. Application Support is writable on a real install.
+    private static let generatedWidgetsDir: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return base
+            .appendingPathComponent("cursor-toolbar", isDirectory: true)
+            .appendingPathComponent("GeneratedWidgets", isDirectory: true)
     }()
 
     private var systemPrompt: String {
@@ -143,7 +167,9 @@ final class AIWidgetBuilderState: ObservableObject {
         Rules for REST APIs / dataSources:
         - Only use FREE, public, no-authentication-required APIs.
         - For weather, use Open-Meteo: https://api.open-meteo.com/v1/forecast?latitude=37.98&longitude=23.73&current_weather=true
-        - For timezone data, use WorldTimeAPI: http://worldtimeapi.org/api/timezone/Europe/Athens
+        - For timezone data, use WorldTimeAPI: https://worldtimeapi.org/api/timezone/Europe/Athens
+        - Every URL MUST use https. App Transport Security blocks plain http, so an
+          http endpoint always fails at runtime with no useful error.
         - "keyPath" uses dot notation to traverse JSON (e.g. "current_weather.temperature").
         - Include a reasonable "refreshIntervalSeconds" (e.g. 600 for weather, 60 for time-based APIs).
         - Always provide a "fallback" text for loading state.
@@ -172,8 +198,7 @@ final class AIWidgetBuilderState: ObservableObject {
             return
         }
 
-        let defaultsKey = provider == .gemini ? AIWidgetBuilderConstants.geminiApiKeyDefaultsKey : AIWidgetBuilderConstants.groqApiKeyDefaultsKey
-        UserDefaults.standard.set(trimmedKey, forKey: defaultsKey)
+        KeychainStore.set(trimmedKey, account: Self.keychainAccount(for: provider))
         isGenerating = true
         progress = 0.06
         statusText = "Generating widget blueprint…"
@@ -208,7 +233,7 @@ final class AIWidgetBuilderState: ObservableObject {
                 let savedPath = saveSwiftTemplate(title: title, blueprint: blueprint)
 
                 outputFileName = "\(title).json"
-                statusText = "✓ Widget ready! Added to dashboard list.\(savedPath != nil ? " Swift file saved to GeneratedWidgets/." : "")"
+                statusText = "✓ Widget ready! Added to dashboard list.\(savedPath != nil ? " Swift template saved to Application Support." : "")"
 
             } catch {
                 progressTask?.cancel()
@@ -430,7 +455,7 @@ final class AIWidgetBuilderState: ObservableObject {
     /// Save a .swift template file to the project's GeneratedWidgets folder.
     @discardableResult
     private func saveSwiftTemplate(title: String, blueprint: WidgetBlueprint) -> String? {
-        let folderURL = Self.projectSourceDir.appendingPathComponent("GeneratedWidgets", isDirectory: true)
+        let folderURL = Self.generatedWidgetsDir
         do {
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         } catch {

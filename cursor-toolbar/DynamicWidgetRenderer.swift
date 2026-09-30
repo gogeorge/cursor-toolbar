@@ -51,9 +51,22 @@ final class APIDataManager: ObservableObject {
     private func fetchData(source: WidgetDataSource) {
         tasks[source.id]?.cancel()
         tasks[source.id] = Task { [weak self] in
-            guard let url = URL(string: source.url) else {
+            guard var url = URL(string: source.url) else {
                 self?.errors[source.id] = "Invalid URL"
                 return
+            }
+
+            // The blueprint URL comes from an LLM, which still emits http:// now and
+            // then. App Transport Security rejects those, so upgrade the scheme
+            // rather than let the widget fail with an opaque -1022.
+            if url.scheme?.lowercased() == "http" {
+                var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                components?.scheme = "https"
+                guard let upgraded = components?.url else {
+                    self?.errors[source.id] = "Insecure URL"
+                    return
+                }
+                url = upgraded
             }
 
             var request = URLRequest(url: url)

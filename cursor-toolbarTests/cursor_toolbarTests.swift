@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import cursor_toolbar
+@testable import Janus
 
 struct cursor_toolbarTests {
 
